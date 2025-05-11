@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext'; // 导入认证上下文
+import { useAuth } from '@/context/AuthContext';
 import {
   Typography,
   Select,
@@ -44,14 +44,14 @@ import {
   DeleteOutlined,
   ClockCircleOutlined
 } from '@ant-design/icons';
-import { NewsItem, NewsCategory, NewsSource, NewsFilterParams, FetchTaskItem, FetchHistoryItem } from '@/utils/types'; // Removed OverallStatusInfo
+import { NewsItem, NewsCategory, NewsSource, NewsFilterParams, FetchTaskItem, FetchHistoryItem } from '@/utils/types';
 import * as newsService from '@/services/newsService';
-import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler'; // Import extractErrorMessage
+import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler';
 import Link from 'next/link';
 import debounce from 'lodash/debounce';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import AnalysisModal from '@/components/analysis/AnalysisModal';
-import withAuth from '@/components/auth/withAuth'; // Import the HOC
+import withAuth from '@/components/auth/withAuth';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
@@ -91,15 +91,15 @@ const NewsPage: React.FC = () => {
   const [categories, setCategories] = useState<NewsCategory[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null); // Updated error state type
+  const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null);
   const [filters, setFilters] = useState<NewsFilterParams>({
     page: 1,
     page_size: 10,
     category_id: undefined,
     source_id: undefined,
     search_term: '',
-    fetch_date: undefined, // Initialize new filter
-    sort_by: undefined, // Initialize new filter
+    fetch_date: undefined,
+    sort_by: undefined,
   });
   const [total, setTotal] = useState(0);
 
@@ -112,7 +112,6 @@ const NewsPage: React.FC = () => {
 
   const [isTaskDrawerVisible, setIsTaskDrawerVisible] = useState<boolean>(false);
   const [tasksToMonitor, setTasksToMonitor] = useState<FetchTaskItem[]>([]);
-  // Removed overallTaskStatus state
 
   const [analysisModalVisible, setAnalysisModalVisible] = useState<boolean>(false);
   const [selectedNewsItemId, setSelectedNewsItemId] = useState<number | null>(null);
@@ -130,7 +129,7 @@ const NewsPage: React.FC = () => {
   const loadNews = useCallback(async (params: NewsFilterParams) => {
     try {
       setLoading(true);
-      setError(null); // Reset error state
+      setError(null);
       const newsData = await newsService.getNewsItems(params);
       setNews(newsData);
       // Assuming total is fetched with newsData or a separate call
@@ -145,11 +144,10 @@ const NewsPage: React.FC = () => {
         setNews([]);
         setTotal(0);
       }
-    } catch (err: any) { // Catch the error here
+    } catch (err: any) {
       console.error('Failed to load news:', err);
-      const errorDetails = extractErrorMessage(err); // Use the structured error handler
-      setError(errorDetails); // Set the structured error state
-      // No need for global message here, component handles display
+      const errorDetails = extractErrorMessage(err);
+      setError(errorDetails);
     } finally {
       setLoading(false);
     }
@@ -269,7 +267,6 @@ const NewsPage: React.FC = () => {
 
               if (taskUpdate.event === "overall_batch_completed") {
                   console.log(`Overall batch group ${currentTaskGroupId} has finished with status: ${taskUpdate.status}`);
-                  // Removed setOverallTaskStatus
                   loadNews(filters);
                   fetchTodaysHistory(); // Refresh today's history after completion
                   setTimeout(() => {
@@ -299,7 +296,7 @@ const NewsPage: React.FC = () => {
                       }
                       if (taskUpdate.items_saved !== undefined) {
                           taskToUpdate.items_saved = taskUpdate.items_saved;
-                          taskToUpdate.items_saved_this_run = taskUpdate.items_saved; // Store for badge
+                          taskToUpdate.items_saved_this_run = taskUpdate.items_saved;
                       }
                       if (taskUpdate.step === TaskStep.Error || taskUpdate.step === TaskStep.Skipped) {
                           taskToUpdate.progress = 100;
@@ -363,11 +360,10 @@ const NewsPage: React.FC = () => {
         setSources(sourcesData);
         setFilteredFetchSources(sourcesData);
         fetchTodaysHistory();
-      } catch (err: any) { // Catch the error here
+      } catch (err: any) {
         console.error('Failed to load initial data:', err);
-        const errorDetails = extractErrorMessage(err); // Use the structured error handler
-        setError(errorDetails); // Set the structured error state
-        // No need for global message here
+        const errorDetails = extractErrorMessage(err);
+        setError(errorDetails);
       } finally {
         setLoading(false);
       }
@@ -381,7 +377,7 @@ const NewsPage: React.FC = () => {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Unknown date';
-    return dayjs(dateString).format('YYYY-MM-DD'); // Consistent date format
+    return dayjs(dateString).format('YYYY-MM-DD');
   };
 
   const showFetchModal = () => {
@@ -434,7 +430,6 @@ const NewsPage: React.FC = () => {
       progress: 0,
     }));
 
-    // Removed setOverallTaskStatus(null)
     // Clear only non-pending/non-running tasks from monitor before adding new ones
     setTasksToMonitor(prevTasks => [
         ...prevTasks.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped'),
@@ -479,7 +474,6 @@ const NewsPage: React.FC = () => {
     const processedSourceIds = new Set<number>();
 
     tasksToMonitor.forEach(task => {
-      // Add all monitored tasks, their status will determine rendering
       displayed.push(task);
       processedSourceIds.add(task.sourceId);
     });
@@ -488,11 +482,9 @@ const NewsPage: React.FC = () => {
       todaysHistory.forEach(hist => {
         if (!processedSourceIds.has(hist.source_id)) {
           displayed.push(hist);
-          // processedSourceIds.add(hist.source_id); // Not strictly needed if only adding non-duplicates
         }
       });
     } else if (historicalData) {
-      // When viewing history, only show historical data, not live tasks
       displayed = [...historicalData];
     }
 
@@ -553,17 +545,17 @@ const NewsPage: React.FC = () => {
   const handleTaskBadgeClick = (sourceId: number, fetchDate: string) => {
     console.log(`Badge clicked for source ${sourceId} on date ${fetchDate}`);
     setFilters(prevFilters => ({
-      ...prevFilters, // Retain essential non-conflicting filters like page_size
+      ...prevFilters,
       source_id: sourceId,
-      fetch_date: fetchDate,     // New: Filter by the specific fetch date
-      category_id: undefined,    // Clear other filters to focus on this source/date
+      fetch_date: fetchDate,
+      category_id: undefined,
       search_term: '',
       analyzed: undefined,
-      page: 1,                   // Always reset to page 1 for new filter context
-      sort_by: 'created_at_desc' // New: Sort by creation time
+      page: 1,
+      sort_by: 'created_at_desc'
     }));
-    setIsTaskDrawerVisible(false); // Close the drawer
-    // Optional: window.scrollTo(0, 0); // Scroll to top
+    setIsTaskDrawerVisible(false);
+
   };
 
 
@@ -590,9 +582,9 @@ const NewsPage: React.FC = () => {
             style={{ width: '100%' }}
             allowClear
             onChange={(value) => handleFilterChange('source_id', value)}
-            loading={loading && sources.length === 0 && !!filters.category_id} // Only show loading if category is selected
+            loading={loading && sources.length === 0 && !!filters.category_id}
             value={filters.source_id}
-            disabled={!filters.category_id && sources.every(s => s.category_id !== undefined)} // Disable if no category selected and sources are category-specific
+            disabled={!filters.category_id && sources.every(s => s.category_id !== undefined)}
           >
             {sources.map(source => (
               <Option key={source.id} value={source.id}>{source.name}</Option>
@@ -608,18 +600,18 @@ const NewsPage: React.FC = () => {
           />
         </Col>
         <Col xs={12} sm={12} md={3} lg={3}>
-          <Button type="primary" icon={<DownloadOutlined />} onClick={showFetchModal} style={{ width: '100%' }}>
-            Get News
-          </Button>
+          <Tooltip title="Get News">
+            <Button type="primary" icon={<DownloadOutlined />} onClick={showFetchModal} style={{ width: '100%' }} />
+          </Tooltip>
         </Col>
         <Col xs={12} sm={12} md={3} lg={3}>
-          <Button icon={<BarsOutlined />} onClick={() => {
-              setViewingDate('today');
-              fetchTodaysHistory();
-              setIsTaskDrawerVisible(true);
-            }} style={{ width: '100%' }}>
-            Progress {tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length > 0 ? `(${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length})` : ''}
-          </Button>
+          <Tooltip title={`Progress ${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length > 0 ? `(${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length})` : ''}`}>
+            <Button icon={<BarsOutlined />} onClick={() => {
+                setViewingDate('today');
+                fetchTodaysHistory();
+                setIsTaskDrawerVisible(true);
+              }} style={{ width: '100%' }} />
+          </Tooltip>
         </Col>
       </Row>
 
@@ -632,14 +624,14 @@ const NewsPage: React.FC = () => {
         />
       )}
 
-      {loading && news.length === 0 ? ( // Show loading spinner only if news is empty
+      {loading && news.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>
           <Spin size="large" tip="Loading news..." />
         </div>
-      ) : error ? ( // Check for any error
-        error.type === 'notFound' ? ( // Specific Not Found UI
+      ) : error ? (
+        error.type === 'notFound' ? (
           <Empty description={error.message || "Content not found."} />
-        ) : error.type === 'forbidden' ? ( // Specific Forbidden UI
+        ) : error.type === 'forbidden' ? (
           <Alert
             message="Access Denied"
             description={error.message || "You do not have permission to view this content."}
@@ -647,7 +639,7 @@ const NewsPage: React.FC = () => {
             showIcon
             style={{ marginBottom: 16 }}
           />
-        ) : ( // Generic Error Alert
+        ) : (
           <Alert
             message={error.message || "An unexpected error occurred."}
             type="error"
@@ -655,14 +647,14 @@ const NewsPage: React.FC = () => {
             style={{ marginBottom: 16 }}
           />
         )
-      ) : !loading && news.length === 0 ? ( // Show empty state only if not loading, no error, and news is empty
+      ) : !loading && news.length === 0 ? (
         <Empty description="No news found. Try adjusting filters or fetching new articles." />
       ) : (
         <>
           <List
             grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 3, xl: 3, xxl: 4 }}
             dataSource={news}
-            loading={loading && news.length > 0} // Show list loading indicator if news already exists
+            loading={loading && news.length > 0}
             renderItem={(item) => (
               <List.Item>
                 <Card hoverable>
@@ -716,7 +708,7 @@ const NewsPage: React.FC = () => {
               showSizeChanger
               onShowSizeChange={(_, size) => {
                 handleFilterChange('page_size', size);
-                handleFilterChange('page', 1); // Reset to page 1 on size change
+                handleFilterChange('page', 1);
               }}
               showTotal={(totalItems, range) => `${range[0]}-${range[1]} of ${totalItems} items`}
             />
@@ -792,11 +784,10 @@ const NewsPage: React.FC = () => {
                   setTasksToMonitor(prev => prev.filter(t =>
                     t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped'
                   ));
-                  // Removed setOverallTaskStatus(null)
                 }}
                 disabled={!tasksToMonitor.some(t =>
                   t.status === 'Complete' || t.status === 'Error' || t.status === 'Skipped'
-                )} // Updated disabled condition
+                )}
                 type="text"
                 icon={<DeleteOutlined />}
               />
@@ -809,8 +800,8 @@ const NewsPage: React.FC = () => {
                   icon={<HistoryOutlined />}
                   onClick={() => {
                     setViewingDate('history');
-                    setSelectedHistoryDate(null); // Reset selected date
-                    setHistoricalData(null); // Clear previous historical data
+                    setSelectedHistoryDate(null);
+                    setHistoricalData(null);
                     // Optionally fetch for a default date like yesterday:
                     // const yesterday = dayjs().subtract(1, 'day');
                     // setSelectedHistoryDate(yesterday);
@@ -825,9 +816,9 @@ const NewsPage: React.FC = () => {
                   icon={<ClockCircleOutlined />}
                   onClick={() => {
                     setViewingDate('today');
-                    fetchTodaysHistory(); // Refresh today's data
-                    setHistoricalData(null); // Clear historical data
-                    setSelectedHistoryDate(null); // Clear selected history date
+                    fetchTodaysHistory();
+                    setHistoricalData(null);
+                    setSelectedHistoryDate(null);
                   }}
                 />
               </Tooltip>
@@ -835,7 +826,7 @@ const NewsPage: React.FC = () => {
           </div>
         }
       >
-        {/* Removed overallTaskStatus display block */}
+
 
         {viewingDate === 'history' && (
           <div style={{ marginBottom: 16 }}>
@@ -868,11 +859,11 @@ const NewsPage: React.FC = () => {
                 let extraContent = null;
                 const iconStyle = { fontSize: '16px', verticalAlign: 'middle' };
                 const badgeAreaStyle = {
-                    minWidth: '45px', // Adjusted for potential 3-digit numbers
+                    minWidth: '45px',
                     display: 'inline-block',
                     textAlign: 'left' as 'left',
                     verticalAlign: 'middle',
-                    marginLeft: '8px' // Space between icon and badge area
+                    marginLeft: '8px'
                 };
 
                 const sourceId = getSourceId(item);
@@ -905,7 +896,7 @@ const NewsPage: React.FC = () => {
                         status="active"
                         size="small"
                         showInfo={false}
-                        style={{ width: 60 }} // Reduced width for progress
+                        style={{ width: 60 }}
                     />
                     </Space>
                 );
@@ -945,7 +936,7 @@ const NewsPage: React.FC = () => {
                 return (
                 <>
                     <List.Item
-                    key={`${getSourceId(item)}-${'sourceId' in item ? 'live' : 'hist'}-${index}`} // More unique key
+                    key={`${getSourceId(item)}-${'sourceId' in item ? 'live' : 'hist'}-${index}`}
                     extra={extraContent}
                     >
                     <List.Item.Meta

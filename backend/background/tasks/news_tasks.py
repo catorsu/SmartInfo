@@ -1,7 +1,3 @@
-# File: backend/background/tasks/news_tasks.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Celery tasks for news processing
 Handles background processing of news sources and articles,
@@ -12,13 +8,13 @@ import logging
 import asyncio
 import json
 from typing import Dict, Any, Optional, List, Union
-import os  # Import os to get pid for logging
-import redis.asyncio as redis  # Import Redis async client
-import redis as sync_redis  # Import synchronous Redis client for chord callback
+import os
+import redis.asyncio as redis
+import redis as sync_redis
 
 from celery import shared_task
 
-# Import resources TYPE HINTS only, actual instances will be created within the task
+
 from core.llm.pool import LLMClientPool
 from db.repositories import (
     NewsRepository,
@@ -28,16 +24,16 @@ from db.repositories import (
 )
 from models import ApiKey
 
-# Import the actual workflow function
+
 from core.workflow.news_fetch import fetch_news
 
-# Import DB connection management
+
 from db.connection import init_db_connection, DatabaseConnectionManager
 
-# Import ws_manager
+
 from core.ws_manager import ws_manager
 
-# Import step codes for progress reporting
+
 from .step_codes import (
     PREPARING,
     CRAWLING,
@@ -49,16 +45,15 @@ from .step_codes import (
     SKIPPED,
 )
 
-# Configure module-level logger
+
 logger = logging.getLogger(__name__)
 
-# Define maximum concurrency for processing sources within a batch task
+
 MAX_CONCURRENT_SOURCES = 3
 
 
-# --- Helper function to run async logic within the task ---
 async def _run_batch_processing(
-    task,  # Celery task instance for state updates
+    task,
     source_ids: List[int],
     user_id: int,
     task_group_id: str,
@@ -81,9 +76,9 @@ async def _run_batch_processing(
     async def progress_callback(
         source_id: int,
         source_name: str,  # Kept for internal logging but not included in update_data
-        step: Union[int, str],  # Use int for step codes
+        step: Union[int, str],
         progress: float,
-        details: str = "",  # Mainly used for error messages
+        details: str = "",
         items_count: int = 0,  # This now represents items_saved_this_run for the final COMPLETE step
     ):
         update_data = {
@@ -93,7 +88,6 @@ async def _run_batch_processing(
             "progress": round(progress, 1),  # Round progress to one decimal
         }
 
-        # Conditionally add optional fields
         is_complete = step == COMPLETE
         is_error = step == ERROR
         is_skipped = step == SKIPPED
@@ -111,9 +105,9 @@ async def _run_batch_processing(
         channel = f"task_progress:{task_group_id}"
         if redis_client:
             try:
-                # Serialize the update data to JSON
+
                 json_message = json.dumps(update_data)
-                # Publish to Redis channel
+
                 await redis_client.publish(channel, json_message)
                 # Reduce logging frequency for non-error/completion updates
                 if is_complete or is_error:
@@ -129,13 +123,12 @@ async def _run_batch_processing(
         else:
             logger.warning("Redis client not available for progress updates")
 
-        # Log progress internally (unchanged)
         logger.info(
             f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}) Progress: Source {source_id} ({source_name}): {step} - {progress:.1f}% - {details}"
         )
 
     try:
-        # Initialize Redis client for publishing updates
+
         redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
         redis_client = await redis.Redis.from_url(redis_url, decode_responses=True)
         logger.info(f"Redis client initialized for task {task.request.id}")
@@ -165,13 +158,13 @@ async def _run_batch_processing(
                 logger.warning(
                     f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): Source ID {source_id} not found or not owned by user {user_id}. Skipping."
                 )
-                # Report skipped status for this source via Redis
+
                 await progress_callback(
                     source_id=source_id,
                     source_name=f"Unknown Source (ID: {source_id})",
                     step=SKIPPED,
                     progress=100,
-                    details=f"源ID {source_id} 未找到或不属于用户 {user_id}",
+                    details=f"Source ID {source_id} not found or does not belong to user {user_id}",
                 )
                 continue
             source_details_to_process.append(dict(source_record))
@@ -180,13 +173,13 @@ async def _run_batch_processing(
             logger.warning(
                 f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): No valid sources to process for user {user_id} in this batch."
             )
-            # Send a completion message for this batch via Redis
+
             completion_data = {
                 "event": "batch_task_completed",
                 "task_id": task.request.id,
                 "message": "No valid sources to process in this batch.",
                 "items_saved": 0,
-                "affected_source_ids": source_ids,  # Report which sources were intended for this batch
+                "affected_source_ids": source_ids,
             }
             channel = f"task_progress:{task_group_id}"
             if redis_client:
@@ -209,11 +202,11 @@ async def _run_batch_processing(
             logger.error(
                 f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): No valid LLM API key found for user {user_id}. Cannot process batch."
             )
-            # Send a failure message for the batch via Redis
+
             failure_data = {
                 "event": "batch_task_failed",
                 "task_id": task.request.id,
-                "affected_source_ids": source_ids,  # Report which sources were intended for this batch
+                "affected_source_ids": source_ids,
                 "message": f"Celery task failed: No valid LLM API key found for user {user_id}",
             }
             channel = f"task_progress:{task_group_id}"
@@ -225,7 +218,7 @@ async def _run_batch_processing(
 
         # 5. Process sources concurrently using asyncio.create_task and asyncio.as_completed
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_SOURCES)
-        results = []  # To store results or exceptions from each task
+        results = []
         tasks_to_run = []
 
         logger.info(
@@ -233,7 +226,7 @@ async def _run_batch_processing(
         )
 
         for source_details_item in source_details_to_process:
-            # Create a task for each source processing
+
             coro = _process_single_source_concurrently(
                 semaphore=semaphore,
                 task=task,  # Pass task instance
@@ -256,7 +249,7 @@ async def _run_batch_processing(
                 result = await future
                 results.append(result)
             except Exception as e:
-                # Log and store the exception
+
                 # The actual source_id would be tricky to get here if the task failed early
                 # We rely on logging within _process_single_source_concurrently for specific source errors
                 logger.error(
@@ -277,7 +270,6 @@ async def _run_batch_processing(
             f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): All source processing tasks completed."
         )
 
-        # Aggregate results (optional, for logging or final task state)
         successful_count = sum(
             1 for r in results if isinstance(r, dict) and r.get("status") == "success"
         )
@@ -292,19 +284,17 @@ async def _run_batch_processing(
             f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): Batch processing summary - Successful: {successful_count}, Errors: {error_count}, Items saved: {items_saved}"
         )
 
-        # Send a completion message for this batch via Redis
         completion_data = {
             "event": "batch_task_completed",
             "task_id": task.request.id,
             "message": f"Batch processing completed. Successful: {successful_count}, Errors: {error_count}",
             "items_saved": items_saved,
-            "affected_source_ids": source_ids,  # Report which sources were intended for this batch
+            "affected_source_ids": source_ids,
         }
         channel = f"task_progress:{task_group_id}"
         if redis_client:
             await redis_client.publish(channel, json.dumps(completion_data))
 
-        # Return structured dictionary for chord callback
         return {
             "task_id": task.request.id,
             "task_group_id": task_group_id,
@@ -319,11 +309,11 @@ async def _run_batch_processing(
         logger.exception(
             f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): Unhandled error during batch async processing for user {user_id}: {e}"
         )
-        # Send a failure message for the batch via Redis
+
         failure_data = {
             "event": "batch_task_failed",
             "task_id": task.request.id,
-            "affected_source_ids": source_ids,  # Report which sources were intended for this batch
+            "affected_source_ids": source_ids,
             "message": f"Celery task failed: {str(e)}",
         }
         try:
@@ -338,7 +328,7 @@ async def _run_batch_processing(
         raise  # Crucially re-raise the exception
 
     finally:
-        # Close Redis client
+
         if redis_client:
             try:
                 await redis_client.close()
@@ -346,7 +336,6 @@ async def _run_batch_processing(
             except Exception as redis_err:
                 logger.error(f"Error closing Redis client: {redis_err}")
 
-        # Ensure LLM client is closed
         if llm_pool:
             try:
                 await llm_pool.close()
@@ -358,7 +347,6 @@ async def _run_batch_processing(
                     f"[PID:{pid}] Task {task.request.id} (Group: {task_group_id}): Error closing LLM pool in finally block: {close_err}"
                 )
 
-        # Ensure database connection is cleaned up
         if db_manager:
             try:
                 await db_manager._cleanup()
@@ -373,13 +361,13 @@ async def _run_batch_processing(
 
 async def _process_single_source_concurrently(
     semaphore: asyncio.Semaphore,
-    task,  # Celery task instance
+    task,
     source_details: Dict[str, Any],
     llm_pool: LLMClientPool,
     news_repo: NewsRepository,
     fetch_history_repo: FetchHistoryRepository,
     user_id: int,
-    progress_callback: callable,  # Batch-level callback
+    progress_callback: callable,
     task_group_id: str,
 ) -> Dict[str, Any]:
     """
@@ -393,7 +381,6 @@ async def _process_single_source_concurrently(
     category_id = source_details.get("category_id")
     category_name = source_details.get("category_name", "未知分类")
 
-    # Create a source-specific progress callback that wraps the batch callback
     async def source_progress_callback(
         step: Union[int, str], progress: float, details: str = "", items_count: int = 0
     ):
@@ -402,7 +389,7 @@ async def _process_single_source_concurrently(
 
         await progress_callback(
             source_id=source_id,
-            source_name=source_name,  # Pass source_name for internal logging
+            source_name=source_name,
             step=step,
             progress=progress,
             details=details,
@@ -414,15 +401,13 @@ async def _process_single_source_concurrently(
             f"[PID:{pid}] Task {task.request.id}: Starting processing for source {source_id} ({source_name}, User: {user_id})."
         )
         try:
-            await source_progress_callback(PREPARING, 5, "准备抓取数据...")
+            await source_progress_callback(PREPARING, 5, "Preparing to fetch data...")
 
-            # Get existing URLs for this user to avoid duplicates
             exclude_links = await news_repo.get_all_urls(user_id)
             logger.info(
                 f"[PID:{pid}] Task {task.request.id}: Source {source_id}: Found {len(exclude_links)} existing URLs for user {user_id}."
             )
 
-            # Call the core workflow function
             fetch_result = None
             try:
                 fetch_result = await fetch_news(
@@ -436,7 +421,9 @@ async def _process_single_source_concurrently(
                 logger.exception(
                     f"[PID:{pid}] Task {task.request.id}: Source {source_id}: Error during fetch_news: {e}"
                 )
-                await source_progress_callback(ERROR, 0, f"抓取和分析错误: {str(e)}")
+                await source_progress_callback(
+                    ERROR, 0, f"Fetch and analysis error: {str(e)}"
+                )
                 return {
                     "source_id": source_id,
                     "status": "error",
@@ -446,7 +433,7 @@ async def _process_single_source_concurrently(
             # --- Process fetch_result ---
             if not fetch_result:
                 await source_progress_callback(
-                    COMPLETE, 100, "完成处理，但未找到新内容"
+                    COMPLETE, 100, "Processing complete, but no new content found"
                 )
                 return {
                     "source_id": source_id,
@@ -455,7 +442,6 @@ async def _process_single_source_concurrently(
                     "items_saved": 0,
                 }
 
-            # Add source and category info, and user ID
             for result_item in fetch_result:
                 result_item["source_name"] = source_name
                 result_item["category_name"] = category_name
@@ -465,11 +451,10 @@ async def _process_single_source_concurrently(
             await source_progress_callback(
                 SAVING,
                 95,
-                f"正在保存 {len(fetch_result)} 个新闻项...",
+                f"Saving {len(fetch_result)} news items...",
                 len(fetch_result),
             )
 
-            # Save to database using user ID
             saved_count, skipped_count = await news_repo.add_batch(
                 fetch_result, user_id
             )
@@ -483,11 +468,10 @@ async def _process_single_source_concurrently(
                     task_group_id=task_group_id,
                 )
 
-            # Update the message based on saved count
             success_message = (
-                "成功处理并保存了 0 个新闻项，未找到有效内容或已有内容"
+                "Successfully processed and saved 0 news items, no valid content found or content already exists"
                 if saved_count == 0
-                else f"成功处理并保存了 {saved_count} 个新闻项，跳过了 {skipped_count} 个新闻项"
+                else f"Successfully processed and saved {saved_count} news items, skipped {skipped_count} news items"
             )
 
             await source_progress_callback(
@@ -513,9 +497,11 @@ async def _process_single_source_concurrently(
             logger.exception(
                 f"[PID:{pid}] Task {task.request.id}: Source {source_id}: Unhandled error during concurrent processing: {e}"
             )
-            # Ensure error state is reported for this specific source
+
             try:
-                await source_progress_callback(ERROR, 100, f"内部处理错误: {str(e)}")
+                await source_progress_callback(
+                    ERROR, 100, f"Internal processing error: {str(e)}"
+                )
             except Exception as cb_e:
                 logger.error(
                     f"[PID:{pid}] Task {task.request.id}: Source {source_id}: Failed to update error state via callback: {cb_e}"
@@ -543,7 +529,6 @@ async def _get_user_llm_pool(
         logger.warning(f"No API keys found for user {user_id}.")
         return None
 
-    # Use the first valid API key found
     for key_data in api_keys_data:
         try:
             api_key = ApiKey.model_validate(dict(key_data))
@@ -561,7 +546,7 @@ async def _get_user_llm_pool(
                 f"Failed to validate or instantiate LLM client for API key data: {key_data}. Error: {e}",
                 exc_info=True,
             )
-            continue  # Try the next key
+            continue
 
     logger.warning(f"No valid API key configuration found for user {user_id}.")
     return None
@@ -592,16 +577,16 @@ def process_single_batch_task(
     )
 
     try:
-        # Use asyncio.run to execute the async logic in a new event loop
+
         result = asyncio.run(
             _run_batch_processing(
-                task=self,  # Pass the task instance for state updates
+                task=self,
                 source_ids=source_ids,
                 user_id=user_id,
-                task_group_id=task_group_id,  # Pass the group ID
+                task_group_id=task_group_id,
             )
         )
-        # Return the structured result dict for the chord callback
+
         return result
     except Exception as e:
         # Error logging and sending the "batch_task_failed" event via Redis Pub/Sub
@@ -634,16 +619,14 @@ def finalize_news_fetch_group(results, task_group_id: str, user_id: int):
         f"[PID:{pid}] Executing chord callback for task_group_id: {task_group_id}, user_id: {user_id}"
     )
 
-    # Initialize aggregated statistics
     total_batches = len(results)
     total_processed_sources = 0
     total_successful_sources = 0
     total_failed_sources = 0
     batch_statuses = []
 
-    # Iterate through results and aggregate statistics
     for batch_result in results:
-        # Check if result is a valid dictionary
+
         if not isinstance(batch_result, dict):
             logger.warning(
                 f"[PID:{pid}] Invalid batch result in task_group {task_group_id}: {batch_result}"
@@ -655,8 +638,7 @@ def finalize_news_fetch_group(results, task_group_id: str, user_id: int):
         total_failed_sources += batch_result.get("failed_sources_count", 0)
         batch_statuses.append(batch_result.get("status", "UNKNOWN"))
 
-    # Determine overall status
-    overall_status = "FAILURE"  # Default
+    overall_status = "FAILURE"
     if all(status == "SUCCESS" for status in batch_statuses):
         overall_status = "SUCCESS"
     elif any(
@@ -664,9 +646,7 @@ def finalize_news_fetch_group(results, task_group_id: str, user_id: int):
         for status in batch_statuses
     ):
         overall_status = "PARTIAL_SUCCESS"
-    # else remains FAILURE
 
-    # Construct concise final message data
     final_message_data = {
         "event": "overall_batch_completed",
         "task_group_id": task_group_id,
@@ -674,13 +654,11 @@ def finalize_news_fetch_group(results, task_group_id: str, user_id: int):
         # Removed successful, failed, and saved keys
     }
 
-    # Publish to Redis using synchronous client
     try:
         redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
         redis_client = sync_redis.Redis.from_url(redis_url, decode_responses=True)
         channel = f"task_progress:{task_group_id}"
 
-        # Serialize and publish the message
         json_message = json.dumps(final_message_data)
         redis_client.publish(channel, json_message)
 
@@ -688,14 +666,12 @@ def finalize_news_fetch_group(results, task_group_id: str, user_id: int):
             f"[PID:{pid}] Published overall completion message to Redis channel {channel} for task_group_id: {task_group_id}"
         )
 
-        # Close Redis client
         redis_client.close()
     except Exception as e:
         logger.exception(
             f"[PID:{pid}] Failed to publish overall completion message to Redis for task_group_id: {task_group_id}: {e}"
         )
 
-    # Return summary for Celery result backend
     return {
         "task_group_id": task_group_id,
         "overall_status": overall_status,

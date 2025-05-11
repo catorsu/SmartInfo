@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Centralized dependencies for FastAPI route functions in API v1.
 Provides dependency injection for database connections, repositories, services, and the LLM pool.
@@ -8,11 +5,11 @@ Provides dependency injection for database connections, repositories, services, 
 
 import logging
 from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordBearer  # Import OAuth2PasswordBearer
-from typing import Optional, Annotated  # Import Annotated
-import redis.asyncio as redis  # Import Redis async client
+from fastapi.security import OAuth2PasswordBearer
+from typing import Optional, Annotated
+import redis.asyncio as redis
 
-# Import components using absolute backend package path
+
 from config import config
 from db.connection import get_db_connection_context
 from db.repositories import (
@@ -26,7 +23,7 @@ from db.repositories import (
     UserRepository,
     FetchHistoryRepository,
 )
-from models import User  # Import User model
+from models import User
 from services import (
     ChatService,
     NewsService,
@@ -35,10 +32,10 @@ from services import (
 )
 
 # Import LLM Pool from its new location in core
-# Import WebSocket manager
+
 from core.ws_manager import ws_manager
 
-# Import security functions
+
 from core.security import (
     decode_access_token,
     ALGORITHM,
@@ -106,7 +103,6 @@ async def get_redis_client(request: Request = None) -> redis.Redis:
     # For WebSockets and other contexts, we'll need to get it from the app state manually
     # This part will be handled in the specific endpoint
 
-    # If we can't determine the context, raise an error
     logger.error("Could not get app from request context")
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

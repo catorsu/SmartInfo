@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 WebSocket connection manager for real-time progress updates.
 Manages active WebSocket connections for task groups and handles message broadcasting.
@@ -22,9 +19,9 @@ class ConnectionManager:
 
     def __init__(self):
         """Initialize an empty connection manager."""
-        # Maps task_group_id to a set of WebSocket connections
+
         self.active_connections: Dict[str, Set[WebSocket]] = {}
-        # Maps task_group_id to task group metadata (user_id, celery_task_ids, etc.)
+
         self.task_group_metadata: Dict[str, Dict[str, Any]] = {}  # Renamed task_data
         logger.info("WebSocket ConnectionManager initialized")
 
@@ -36,12 +33,10 @@ class ConnectionManager:
             websocket: The WebSocket connection to accept and track
             task_group_id: Identifier for the task group this connection is monitoring
         """
-        # Remove the redundant websocket.accept() call
-        # Create a new set if this is the first connection for this task_group_id
+
         if task_group_id not in self.active_connections:
             self.active_connections[task_group_id] = set()
 
-        # Add this connection to the set for this task_group_id
         self.active_connections[task_group_id].add(websocket)
         logger.info(
             f"Client connected to task_group_id: {task_group_id}, active connections: {len(self.active_connections[task_group_id])}"
@@ -55,7 +50,7 @@ class ConnectionManager:
             websocket: The WebSocket connection to remove
             task_group_id: The task group ID this connection was monitoring
         """
-        # Remove the connection if it exists
+
         if task_group_id in self.active_connections:
             try:
                 self.active_connections[task_group_id].remove(websocket)
@@ -63,12 +58,11 @@ class ConnectionManager:
                     f"Client disconnected from task_group_id: {task_group_id}, remaining connections: {len(self.active_connections[task_group_id])}"
                 )
 
-                # Clean up empty sets to avoid memory leaks
                 if not self.active_connections[task_group_id]:
                     del self.active_connections[task_group_id]
                     logger.info(f"Removed empty task_group_id: {task_group_id}")
             except KeyError:
-                # Websocket wasn't in the set, which is fine
+
                 pass
 
     async def send_update(self, task_group_id: str, data: Dict[str, Any]):
@@ -83,11 +77,8 @@ class ConnectionManager:
             logger.warning(f"No active connections for task_group_id: {task_group_id}")
             return
 
-        # Track disconnected websockets to remove later
         disconnected_websockets = set()
 
-        # Send message to all connected clients for this task group
-        # Iterate over a copy of the set in case disconnect is called during iteration
         for websocket in set(self.active_connections[task_group_id]):
             try:
                 await websocket.send_json(data)
@@ -95,7 +86,6 @@ class ConnectionManager:
                 logger.error(f"Error sending update to WebSocket: {e}")
                 disconnected_websockets.add(websocket)
 
-        # Clean up any disconnected websockets
         for websocket in disconnected_websockets:
             await self.disconnect(websocket, task_group_id)
 
@@ -136,5 +126,4 @@ class ConnectionManager:
             )
 
 
-# Global instance of the connection manager
 ws_manager = ConnectionManager()

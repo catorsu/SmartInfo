@@ -1,7 +1,3 @@
-# backend/services/__init__.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Service Layer Package.
 

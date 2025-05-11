@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Celery Application Configuration
 Configures Celery to use Redis as both message broker and result backend.
@@ -12,10 +9,10 @@ from celery import Celery
 import logging
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+
 load_dotenv()
 
-# Configure logging
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
@@ -23,11 +20,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Get Redis URL from environment or use default
+
 BROKER_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 BACKEND_URL = os.getenv("REDIS_BACKEND_URL", "redis://127.0.0.1:6379/1")
 
-# Create the Celery app
+
 celery_app = Celery(
     "background",
     broker=BROKER_URL,
@@ -35,7 +32,7 @@ celery_app = Celery(
     include=["background.tasks.news_tasks"],  # Corrected module path
 )
 
-# Configure Celery
+
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
@@ -47,6 +44,5 @@ celery_app.conf.update(
 )
 
 
-# This allows you to run celery with: celery -A backend.background.celery_app worker --loglevel=info
 if __name__ == "__main__":
     celery_app.start()

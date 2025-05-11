@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Setting service for managing user-specific application settings and API keys
 """
@@ -9,7 +6,7 @@ import logging
 import json
 from typing import Dict, Any, List, Optional, Union
 
-# Import using backend package path
+
 from db.repositories.api_key_repository import ApiKeyRepository
 from db.repositories.user_preference_repository import UserPreferenceRepository
 from models import (
@@ -18,7 +15,7 @@ from models import (
     UserPreference,
     UserPreferenceBase,
     User,
-)  # Import relevant models
+)
 
 from core.llm.client import AsyncLLMClient
 
@@ -55,9 +52,7 @@ class SettingService:
             ApiKey.model_validate(dict(item)) for item in api_keys_data
         ]  # Use model_validate
 
-    async def save_api_key(
-        self, api_key_data: ApiKeyCreate, user_id: int  # Use Pydantic model
-    ) -> ApiKey:
+    async def save_api_key(self, api_key_data: ApiKeyCreate, user_id: int) -> ApiKey:
         """Save a new API key for a specific user."""
         if api_key_data.user_id != user_id:
             raise ValueError(
@@ -86,7 +81,7 @@ class SettingService:
             context=api_key_data.context,
             max_output_tokens=api_key_data.max_output_tokens,
             description=api_key_data.description,
-            user_id=user_id,  # Pass user_id
+            user_id=user_id,
         )
 
         if key_id:
@@ -106,8 +101,8 @@ class SettingService:
     async def update_api_key(
         self,
         api_id: int,
-        user_id: int,  # Add user_id
-        api_key_data: ApiKeyCreate,  # Use Pydantic model for update data
+        user_id: int,
+        api_key_data: ApiKeyCreate,
     ) -> Optional[ApiKey]:
         """Update an existing API key for a specific user."""
         if api_key_data.user_id != user_id:
@@ -129,10 +124,10 @@ class SettingService:
         # Repository update method checks ownership via user_id in WHERE clause
         updated = await self._api_key_repo.update(
             api_id=api_id,
-            user_id=user_id,  # Pass user_id for ownership check
+            user_id=user_id,
             model=api_key_data.model,
             base_url=str(api_key_data.base_url),
-            api_key=api_key_data.api_key,  # Pass optional new key
+            api_key=api_key_data.api_key,
             context=api_key_data.context,
             max_output_tokens=api_key_data.max_output_tokens,
             description=api_key_data.description,
@@ -166,7 +161,6 @@ class SettingService:
         # This means any key can be saved. If we need validation, we'd need a separate source
         # of truth for valid user preference keys. For now, save whatever is provided.
 
-        # Save each setting to the database for the user
         all_success = True
         for key, value in settings.items():
             # Convert value to string for storage (repo expects string)
@@ -191,7 +185,7 @@ class SettingService:
 
     async def reset_settings_to_defaults(self, user_id: int) -> Dict[str, Any]:
         """Reset application settings to defaults for a specific user."""
-        # Clear existing settings for the user from the database
+
         success = await self._user_preference_repo.clear_all_for_user(user_id)
 
         if not success:

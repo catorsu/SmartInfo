@@ -2,7 +2,7 @@ import React from 'react';
 import { useRouter } from 'next/router';
 import AnalysisWindowContent from '@/components/analysis/AnalysisWindowContent';
 import { Typography, Alert } from 'antd';
-import withAuth from '@/components/auth/withAuth'; // Import the HOC
+import withAuth from '@/components/auth/withAuth';
 
 const { Title } = Typography;
 
@@ -10,7 +10,6 @@ const AnalyzePage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
 
-  // Ensure id is a number
   const newsItemId = typeof id === 'string' ? parseInt(id, 10) : undefined;
 
   if (router.isReady && newsItemId === undefined) {
@@ -26,7 +25,6 @@ const AnalyzePage: React.FC = () => {
     );
   }
 
-  // Render the AnalysisWindowContent component, passing the newsItemId
   return (
     <div style={{ padding: '20px' }}>
       {newsItemId !== undefined ? (
@@ -40,5 +38,4 @@ const AnalyzePage: React.FC = () => {
   );
 };
 
-// Wrap the component with the HOC for authentication
 export default withAuth(AnalyzePage);

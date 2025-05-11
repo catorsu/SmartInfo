@@ -1,13 +1,8 @@
-# File: /home/cator/project/SmartInfo/backend/db/schema_constants.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Schema Constants Module
 Defines database schema constants used across the application
 """
 
-# Table names
 USERS_TABLE = "users"
 NEWS_CATEGORY_TABLE = "news_category"
 NEWS_SOURCES_TABLE = "news_sources"
@@ -17,8 +12,6 @@ USER_PREFERENCES_TABLE = "user_preferences"
 CHATS_TABLE = "chats"
 MESSAGES_TABLE = "messages"
 FETCH_HISTORY_TABLE = "fetch_history"
-
-# --- Table Column Constants Grouped by Class ---
 
 
 class Users:

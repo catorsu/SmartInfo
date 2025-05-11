@@ -1,10 +1,10 @@
-# backend/api/dependencies/__init__.py
+"""
+Dependencies for the API.
+"""
 
 from api.dependencies.dependencies import (
-    # Connection
     get_db_connection_context_dependency,
     get_current_active_user,
-    # Repositories
     get_user_repository,
     get_api_key_repository,
     get_chat_repository,
@@ -14,7 +14,6 @@ from api.dependencies.dependencies import (
     get_news_source_repository,
     get_user_preference_repository,
     get_fetch_history_repository,
-    # Services
     get_chat_service,
     get_news_service,
     get_setting_service,

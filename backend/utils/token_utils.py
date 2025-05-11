@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+"""
+Token Utils for calculating the token size of text.
+"""
 
 import logging
 

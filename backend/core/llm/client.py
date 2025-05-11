@@ -1,6 +1,3 @@
-# backend/core/llm/client.py
-# -*- coding: utf-8 -*-
-
 """
 LLM Client module
 Responsible for interacting with Large Language Models (LLMs) via APIs
@@ -27,7 +24,7 @@ from typing import (
     cast,
 )
 
-# Use the official OpenAI library for interactions
+
 from openai import (
     APIError,
     AsyncOpenAI,
@@ -175,7 +172,6 @@ class AsyncLLMClient(LLMClientBase):
                 self._client = None
                 self._is_closed = True
 
-    # --- Context Manager Support ---
     async def __aenter__(self):
         self._ensure_client()
         return self
@@ -234,7 +230,6 @@ class AsyncLLMClient(LLMClientBase):
         try:
             completion = await client.chat.completions.create(**request_params)
 
-            # Log usage
             if completion.usage:
                 logger.info(
                     f"LLM Usage (Model: {model_to_use}): "
@@ -243,7 +238,6 @@ class AsyncLLMClient(LLMClientBase):
                     f"Total={completion.usage.total_tokens}"
                 )
 
-            # Extract content
             if completion.choices and completion.choices[0].message:
                 response_content = completion.choices[0].message.content
                 finish_reason = completion.choices[0].finish_reason
@@ -325,7 +319,6 @@ class AsyncLLMClient(LLMClientBase):
             stream = await client.chat.completions.create(**request_params)
             logger.debug("Async LLM stream initiated.")
 
-            # Process the stream
             total_chunks = 0
             async for chunk in stream:
                 total_chunks += 1
@@ -352,7 +345,7 @@ class AsyncLLMClient(LLMClientBase):
             logger.debug(
                 f"Async stream completed for model {model_to_use}, chunks: {total_chunks}"
             )
-            return  # End the generator after stream is complete
+            return
 
         except (
             RateLimitError,
@@ -408,7 +401,6 @@ class SyncLLMClient(LLMClientBase):
                 self._client = None
                 self._is_closed = True
 
-    # --- Context Manager Support ---
     def __enter__(self):
         self._ensure_client()
         return self
@@ -607,7 +599,6 @@ class SyncLLMClient(LLMClientBase):
             raise
 
 
-# Factory function for backward compatibility
 def LLMClient(
     base_url: str,
     api_key: Optional[str],

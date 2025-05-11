@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Router for task management and monitoring endpoints.
 Provides WebSocket connection for real-time task progress updates.
@@ -42,12 +39,11 @@ async def redis_message_listener(
             message = await pubsub.get_message(timeout=1.0)
             if message is not None and message["type"] == "message":
                 try:
-                    # Parse the JSON message from Redis
+
                     update_data = json.loads(message["data"])
 
-                    # Check connection state before sending
                     if websocket.client_state == WebSocketState.CONNECTED:
-                        # Forward the message to WebSocket clients
+
                         await ws_manager.send_update(task_group_id, update_data)
                     else:
                         logger.warning(
@@ -109,14 +105,13 @@ async def websocket_task_group_endpoint(
     channel_name = f"task_progress:{task_group_id}"
 
     try:
-        # Accept the connection immediately
+
         await websocket.accept()
 
         # Get dependencies manually since FastAPI's dependency injection might
         # not handle WebSocket context correctly
         user_repo = await get_user_repository()
 
-        # Get Redis client from app state
         app = websocket.scope["app"]
         if not hasattr(app.state, "redis_client"):
             logger.error("Redis client not available in app state")
@@ -128,7 +123,6 @@ async def websocket_task_group_endpoint(
 
         redis_client = app.state.redis_client
 
-        # 验证令牌
         if not token:
             logger.warning(
                 f"WebSocket connection attempt without token for task_group_id: {task_group_id}"
@@ -136,7 +130,6 @@ async def websocket_task_group_endpoint(
             await websocket.close(code=4001, reason="Authentication required")
             return
 
-        # 解码令牌以验证身份
         payload = decode_access_token(token)
         if not payload:
             logger.warning(
@@ -145,7 +138,6 @@ async def websocket_task_group_endpoint(
             await websocket.close(code=4001, reason="Invalid authentication token")
             return
 
-        # 获取用户ID并验证用户存在
         user_id = payload.get("sub")
         if not user_id:
             logger.warning(
@@ -154,7 +146,6 @@ async def websocket_task_group_endpoint(
             await websocket.close(code=4001, reason="Invalid authentication token")
             return
 
-        # 验证用户存在
         user = await user_repo.get_user_by_id(int(user_id))
         if not user:
             logger.warning(
@@ -163,7 +154,6 @@ async def websocket_task_group_endpoint(
             await websocket.close(code=4001, reason="User not found")
             return
 
-        # Get task group metadata and verify user has access
         task_group_metadata = ws_manager.get_task_group_metadata(
             task_group_id
         )  # Use new ws_manager method
@@ -181,7 +171,6 @@ async def websocket_task_group_endpoint(
             await websocket.close(code=4004, reason="Task group not found")
             return
 
-        # Verify task group ownership
         group_user_id = task_group_metadata.get("user_id")
         if group_user_id != int(user_id):
             logger.warning(
@@ -190,24 +179,20 @@ async def websocket_task_group_endpoint(
             await websocket.close(code=4003, reason="Unauthorized access to task group")
             return
 
-        # All checks passed, register the WebSocket connection with the manager
         await ws_manager.connect(websocket, task_group_id)
         logger.info(
             f"WebSocket connection established for task_group_id: {task_group_id}, user_id: {user_id}"
         )
 
-        # Initialize Redis PubSub and subscribe to the channel
         pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
         await pubsub.subscribe(channel_name)
         logger.info(f"Subscribed to Redis channel: {channel_name}")
 
-        # Start the background listener task
         listener_task = asyncio.create_task(
             redis_message_listener(websocket, pubsub, task_group_id)
         )
         logger.info(f"Started Redis listener task for {task_group_id}")
 
-        # Keep the connection alive until disconnected
         try:
             while websocket.client_state != WebSocketState.DISCONNECTED:
                 await asyncio.sleep(10)  # Check state less frequently
@@ -221,7 +206,7 @@ async def websocket_task_group_endpoint(
             f"Unhandled exception in websocket_task_group_endpoint for {task_group_id}: {e}",
             exc_info=True,
         )
-        # Attempt to send a final error message before closing
+
         try:
             await websocket.send_json(
                 {
@@ -238,12 +223,11 @@ async def websocket_task_group_endpoint(
             f"Executing finally block for task_group_id: {task_group_id}. Cleaning up connection."
         )
 
-        # Cancel the listener task if it's running
         if listener_task and not listener_task.done():
             try:
                 listener_task.cancel()
                 try:
-                    await listener_task  # Wait for cancellation
+                    await listener_task
                 except asyncio.CancelledError:
                     logger.info(
                         f"Redis listener task for {task_group_id} successfully cancelled."
@@ -253,7 +237,6 @@ async def websocket_task_group_endpoint(
             except Exception as e:
                 logger.error(f"Error cancelling Redis listener task: {e}")
 
-        # Unsubscribe and close PubSub
         if pubsub:
             try:
                 await pubsub.unsubscribe(channel_name)
@@ -262,7 +245,6 @@ async def websocket_task_group_endpoint(
             except Exception as e:
                 logger.error(f"Error closing Redis PubSub: {e}")
 
-        # Disconnect from the WebSocket manager
         await ws_manager.disconnect(websocket, task_group_id)
         logger.info(f"WebSocket disconnected from manager for {task_group_id}")
 

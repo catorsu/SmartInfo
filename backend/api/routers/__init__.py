@@ -1,4 +1,6 @@
-# backend/api/routers/__init__.py
+"""
+Routers for the API.
+"""
 
 from api.routers.chat import router as chat_router
 from api.routers.news import router as news_router

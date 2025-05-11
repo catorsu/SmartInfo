@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Authentication API Router
 Handles user registration, login (token generation), and user info endpoints.
@@ -19,7 +16,7 @@ from models import (
 from services import AuthService
 from core.security import create_access_token
 
-# Import dependency functions from dependencies.py
+
 from api.dependencies.dependencies import (
     get_current_active_user,
     get_auth_service,
@@ -28,13 +25,11 @@ from api.dependencies.dependencies import (
 router = APIRouter()
 
 
-# Pydantic model for the token response
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 
-# Define a new response model including the user
 class TokenWithUser(Token):
     user: User
 
@@ -56,11 +51,9 @@ async def register_user(
             detail="Username already registered or registration failed",
         )
 
-    # Create access token for the new user
     access_token_data = {"sub": str(new_user.id)}
     access_token = create_access_token(data=access_token_data)
 
-    # Return both the access token and the new user object
     return TokenWithUser(
         access_token=access_token,
         token_type="bearer",
@@ -87,7 +80,7 @@ async def login_for_access_token(
     # Data to include in the JWT payload (subject: user identifier)
     access_token_data = {"sub": str(user.id)}  # Use user ID as subject
     access_token = create_access_token(data=access_token_data)
-    # Return both the access token and the user object
+
     return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 

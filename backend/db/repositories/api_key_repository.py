@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 API Key Repository Module
 Provides data access operations for API keys
@@ -33,7 +30,7 @@ class ApiKeyRepository(BaseRepository):
         api_key: str,
         context: int,
         max_output_tokens: int,
-        user_id: int,  # Add user_id
+        user_id: int,
         description: str = None,
     ) -> Optional[int]:
         """Adds a new API key configuration for a user. Returns new ID or None if failed."""
@@ -55,7 +52,7 @@ class ApiKeyRepository(BaseRepository):
             description,
             current_time,
             current_time,
-            user_id,  # Add user_id
+            user_id,
         )
 
         try:
@@ -126,7 +123,7 @@ class ApiKeyRepository(BaseRepository):
             ),
             current_time,
             api_id,
-            user_id,  # Add user_id to WHERE clause
+            user_id,
         )
 
         try:

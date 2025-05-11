@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+"""
+HTML Utils for cleaning and formatting HTML content.
+"""
 
 import logging
 import re
@@ -217,7 +219,6 @@ def clean_html(
         f"Removed {removed_count} elements based on exclusions for {base_url}."
     )
 
-    # 返回清理后的HTML字符串
     return str(soup)
 
 
@@ -242,7 +243,7 @@ def format_html(
     """
     if not cleaned_html:
         return ""
-    # 解析清理后的HTML字符串
+
     try:
         soup = BeautifulSoup(cleaned_html, "lxml")
     except Exception:
@@ -289,19 +290,28 @@ def clean_and_format_html(
     cleaned_html = clean_html(html_content, base_url, exclude_tags, exclude_selectors)
     return format_html(cleaned_html, base_url, output_format, markdownify_options)
 
+
 # --- Extract metadata from article html ---
-def extract_metadata_from_article_html(html_content: str, base_url: str) -> Optional[Dict[str, Any]]:
+def extract_metadata_from_article_html(
+    html_content: str, base_url: str
+) -> Optional[Dict[str, Any]]:
     """Extract metadata from article html."""
     from trafilatura import bare_extraction
     from trafilatura.metadata import Document
 
-    document = bare_extraction(html_content, url=base_url, favor_recall=True, with_metadata=True, only_with_metadata=True)
+    document = bare_extraction(
+        html_content,
+        url=base_url,
+        favor_recall=True,
+        with_metadata=True,
+        only_with_metadata=True,
+    )
     if not document or not isinstance(document, Document):
         return None
 
     return {
-        'title': document.title,
-        'url': document.url,
-        'date': document.date,
-        'content': document.raw_text,
+        "title": document.title,
+        "url": document.url,
+        "date": document.date,
+        "content": document.raw_text,
     }

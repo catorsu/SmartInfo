@@ -1,5 +1,3 @@
-# backend/api/routers/news.py
-# -*- coding: utf-8 -*-
 """
 API router for user-specific news functionalities (Version 1).
 Handles CRUD for news items, sources, categories, and initiates fetching/analysis tasks for the authenticated user.
@@ -19,17 +17,17 @@ import uuid
 import math  # Import math for batching
 from datetime import date
 
-# Import dependencies from the centralized dependencies module
+
 from api.dependencies import (
     get_news_service,
     get_current_active_user,
     get_fetch_history_repository,
 )  # Import user dependency
 
-# Import Celery primitives for chord
+
 from celery import chord, group
 
-# Import schemas from the main models package
+
 from models import (  # Import models directly
     News,  # Keep for internal use if needed
     NewsCreate,
@@ -44,17 +42,16 @@ from models import (  # Import models directly
     FetchSourceBatchRequest,
     FetchHistoryItemResponse,
     User,
-    # Import News Response Schemas
     NewsCategoryResponse,
     NewsSourceResponse,
     NewsResponse,
 )
 
-# Import the service class type hint
+
 from services.news_service import NewsService
 from db.repositories import FetchHistoryRepository
 
-# Import ws_manager and Celery tasks
+
 from core.ws_manager import ws_manager
 from background.tasks.news_tasks import (
     process_single_batch_task,
@@ -164,7 +161,7 @@ async def create_news_item(
     Manually create a new news item for the current user.
     Requires title and URL. Source/category IDs must belong to the user.
     """
-    # Ensure the item data is associated with the current user
+
     news_item_data_with_user = news_item_data.model_copy(
         update={"user_id": current_user.id}
     )

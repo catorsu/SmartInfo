@@ -1,5 +1,5 @@
 import api from './api';
-import axios from 'axios'; // Import axios for error checking
+import axios from 'axios';
 import {
   NewsItem,
   NewsCategory,
@@ -21,7 +21,7 @@ import {
 
 const BASE_PATH = '/api/news';
 
-// News Categories API
+
 export const getCategories = async (): Promise<NewsCategory[]> => {
   const response = await api.get(`${BASE_PATH}/categories`);
   return response.data;
@@ -41,7 +41,7 @@ export const deleteCategory = async (id: number): Promise<void> => {
   await api.delete(`${BASE_PATH}/categories/${id}`);
 };
 
-// News Sources API
+
 export const getSources = async (): Promise<NewsSource[]> => {
   const response = await api.get(`${BASE_PATH}/sources`);
   return response.data;
@@ -81,7 +81,7 @@ export const deleteSource = async (id: number): Promise<void> => {
   await api.delete(`${BASE_PATH}/sources/${id}`);
 };
 
-// News Items API
+
 export const getNewsItems = async (params: NewsFilterParams): Promise<NewsItem[]> => {
   const response = await api.get(`${BASE_PATH}/items`, { params });
   return response.data;
@@ -125,7 +125,7 @@ export const clearAllNewsItems = async (): Promise<void> => {
   await api.delete(`${BASE_PATH}/items/clear`);
 };
 
-// Task Endpoints
+
 export const fetchAllNews = async (): Promise<Record<string, string>> => {
   const response = await api.post(`${BASE_PATH}/tasks/fetch/all`);
   return response.data;
@@ -207,7 +207,7 @@ export const streamAnalysis = async (newsId: number, force: boolean = false): Pr
   return response;
 };
 
-// NEW: Function to fetch fetch history
+
 export const getFetchHistory = async (params?: {
   date?: string; // YYYY-MM-DD
   start_date?: string; // YYYY-MM-DD

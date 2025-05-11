@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 News Repository Module
 Provides data access operations for news articles using aiosqlite
@@ -8,8 +5,8 @@ Provides data access operations for news articles using aiosqlite
 
 import logging
 from typing import List, Dict, Optional, Tuple, Any
-import asyncpg  # Add asyncpg
-from datetime import date, datetime, timezone  # Import for TIMESTAMPTZ
+import asyncpg
+from datetime import date, datetime, timezone
 
 from db.schema_constants import News
 
@@ -53,7 +50,7 @@ class NewsRepository(BaseRepository):
             item.get("analysis"),
             item.get("date"),
             item.get("content"),
-            user_id,  # Add user_id
+            user_id,
         )
 
         try:
@@ -92,7 +89,7 @@ class NewsRepository(BaseRepository):
 
         params_list = []
         skipped_count = 0
-        # Fetch URLs only for the current user
+
         urls_in_db_list = await self.get_all_urls(user_id)
         urls_in_db_set = set(urls_in_db_list)
 
@@ -107,7 +104,6 @@ class NewsRepository(BaseRepository):
                 skipped_count += 1
                 continue
 
-            # Check if URL already exists for this user in DB or was already processed in this batch
             if url in urls_in_db_set or url in processed_urls_in_batch:
                 logger.debug(
                     f"Skipping duplicate URL for user {user_id} in batch or DB: {url}"
@@ -227,10 +223,10 @@ class NewsRepository(BaseRepository):
         fetch_date: Optional[
             date
         ] = None,  # New parameter for filtering by creation date
-        sort_by: Optional[str] = None,  # New parameter for sorting
+        sort_by: Optional[str] = None,
     ) -> List[asyncpg.Record]:
         """Gets news items with various filters applied, paginated."""
-        # Start with base query
+
         base_query = f"""
             SELECT
                 {News.ID}, {News.TITLE}, {News.URL}, {News.SOURCE_NAME},
@@ -240,11 +236,9 @@ class NewsRepository(BaseRepository):
             WHERE {News.USER_ID} = $1
         """
 
-        # Parameters list, starting with user_id
         params = [user_id]
         param_index = 2  # Next parameter index (PostgreSQL uses $1, $2, etc.)
 
-        # Add filter conditions
         conditions = []
         if category_id is not None:
             conditions.append(f"{News.CATEGORY_ID} = ${param_index}")
@@ -279,7 +273,6 @@ class NewsRepository(BaseRepository):
             params.append(search_term)
             param_index += 1
 
-        # New condition for fetch_date
         if fetch_date is not None:
             conditions.append(
                 f"DATE({News.CREATED_AT}) = ${param_index}"
@@ -287,18 +280,15 @@ class NewsRepository(BaseRepository):
             params.append(fetch_date)
             param_index += 1
 
-        # Combine conditions
         if conditions:
             base_query += " AND " + " AND ".join(conditions)
 
-        # Add ORDER BY clause
-        order_clause = f"ORDER BY {News.ID} DESC"  # Default sort
+        order_clause = f"ORDER BY {News.ID} DESC"
         if sort_by == "created_at_desc":
-            order_clause = f"ORDER BY {News.CREATED_AT} DESC, {News.ID} DESC"  # Sort by creation time descending
+            order_clause = f"ORDER BY {News.CREATED_AT} DESC, {News.ID} DESC"
 
         base_query += f" {order_clause}"
 
-        # Add pagination
         offset = (page - 1) * page_size
         base_query += f" LIMIT ${param_index} OFFSET ${param_index + 1}"
         params.extend([page_size, offset])
@@ -398,14 +388,14 @@ class NewsRepository(BaseRepository):
 
     async def get_news_with_filters_as_dict(
         self,
-        user_id: int,  # Add user_id
+        user_id: int,
         category_id: Optional[int] = None,
         source_id: Optional[int] = None,
         analyzed: Optional[bool] = None,
         page: int = 1,
         page_size: int = 20,
         search_term: Optional[str] = None,
-        fetch_date: Optional[date] = None,  # New parameter
+        fetch_date: Optional[date] = None,
         sort_by: Optional[str] = None,  # New parameter
     ) -> List[Dict[str, Any]]:
         """Gets news items with various filters applied, paginated, returning dictionaries."""
@@ -417,11 +407,10 @@ class NewsRepository(BaseRepository):
             page=page,
             page_size=page_size,
             search_term=search_term,
-            fetch_date=fetch_date,  # Pass new parameter
-            sort_by=sort_by,  # Pass new parameter
+            fetch_date=fetch_date,
+            sort_by=sort_by,
         )
 
-        # Convert to list of dictionaries
         result_dicts = []
         for record in result_records:
             item_dict = dict(record)

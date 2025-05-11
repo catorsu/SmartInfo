@@ -1,7 +1,3 @@
-# backend/config.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Application Configuration Module
 - Loads settings from environment variables and a user preference table in the database.
@@ -16,7 +12,7 @@ from typing import Any, Optional
 
 dotenv.load_dotenv()
 
-# Configure module-level logger
+
 logger = logging.getLogger(__name__)
 
 
@@ -121,5 +117,4 @@ class AppConfig:
         return self._fetch_batch_size
 
 
-# Create a single, globally accessible instance of AppConfig
 config = AppConfig()

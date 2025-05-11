@@ -1,5 +1,3 @@
-# backend/api/routers/chat.py
-# -*- coding: utf-8 -*-
 """
 API router for chat functionalities (Version 1).
 Handles chat session management, message operations, and interaction with the LLM.
@@ -7,23 +5,22 @@ Handles chat session management, message operations, and interaction with the LL
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Body, status
-from typing import List, Dict, Any, Optional, Annotated  # Import Annotated
+from typing import List, Dict, Any, Optional, Annotated
 
-# Import dependencies from the centralized dependencies module
+
 from api.dependencies import (
     get_chat_service,
     get_current_active_user,
-)  # Import user dependency
+)
 
-# Import schemas from the main models package
+
 from models.schemas.chat import (
-    Chat,  # Keep for internal use if needed
+    Chat,
     ChatCreate,
-    Message,  # Keep for internal use if needed
+    Message,
     MessageCreate,
     ChatAnswer,
     Question,
-    # Import Chat Response Schemas
     MessageResponse,
     ChatResponse,
     ChatListResponseItem,
@@ -31,19 +28,17 @@ from models.schemas.chat import (
 
 from models.schemas.user import User
 
-# Import the service class type hint
+
 from services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# --- Chat Session Endpoints (User-Aware) ---
-
 
 @router.get(
     "/", response_model=List[ChatListResponseItem], summary="List user's chat sessions"
-)  # Updated response model
+)
 async def get_all_chats(
     current_user: Annotated[User, Depends(get_current_active_user)],
     chat_service: Annotated[ChatService, Depends(get_chat_service)],
@@ -144,16 +139,16 @@ async def create_chat(
     Create a new chat session for the current user.
     The user_id from the token will override any user_id in chat_data.
     """
-    # Ensure the chat data is associated with the current user
+
     chat_data_with_user = chat_data.model_copy(update={"user_id": current_user.id})
 
     try:
         new_chat = await chat_service.create_chat(
             chat_data=chat_data_with_user, user_id=current_user.id
         )
-        # Service layer now returns the full Chat object or raises error
+
         return new_chat
-    except ValueError as ve:  # Catch potential validation errors from service
+    except ValueError as ve:
         logger.error(f"Chat creation validation error: {ve}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
@@ -176,14 +171,14 @@ async def update_chat(
     """
     Update the title of an existing chat session belonging to the current user.
     """
-    # Ensure the chat data is associated with the current user for update check
+
     chat_data_with_user = chat_data.model_copy(update={"user_id": current_user.id})
 
     updated_chat = await chat_service.update_chat(
         chat_id=chat_id, chat_data=chat_data_with_user, user_id=current_user.id
     )
     if not updated_chat:
-        # Service handles the check if chat exists and belongs to user
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chat session with ID {chat_id} not found or not owned by user.",
@@ -214,9 +209,6 @@ async def delete_chat(
     return None
 
 
-# --- Message Endpoints (User context checked via chat ownership) ---
-
-
 @router.get(
     "/{chat_id}/messages",
     response_model=List[MessageResponse],  # Updated response model
@@ -230,14 +222,14 @@ async def get_messages_by_chat_id(
     """
     Retrieve all messages for a specific chat session, ensuring the chat belongs to the current user.
     """
-    # Check chat ownership first
+
     chat = await chat_service.get_chat_by_id(chat_id=chat_id, user_id=current_user.id)
     if not chat:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chat session with ID {chat_id} not found or not owned by user.",
         )
-    # Messages are already loaded in the chat object by the service method
+
     return chat.messages or []
 
 
@@ -260,13 +252,13 @@ async def get_message_by_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Message with ID {message_id} not found.",
         )
-    # Verify chat ownership
+
     chat = await chat_service.get_chat_by_id(
         chat_id=message.chat_id, user_id=current_user.id
     )
     if not chat:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,  # Or 404 if we hide existence
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Access denied to message {message_id}.",
         )
     return message
@@ -286,20 +278,20 @@ async def create_message(
     """
     Add a new message to a chat session, ensuring the chat belongs to the current user.
     """
-    # Verify chat ownership before adding message
+
     chat = await chat_service.get_chat_by_id(
         chat_id=message_data.chat_id, user_id=current_user.id
     )
     if not chat:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,  # Or 403 Forbidden
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chat session with ID {message_data.chat_id} not found or not owned by user.",
         )
     try:
-        # Service create_message doesn't need user_id directly, relies on prior check
+
         new_message = await chat_service.create_message(message_data)
         return new_message
-    except ValueError as ve:  # Catch ValueError specifically
+    except ValueError as ve:
         logger.error(f"Message creation validation error: {ve}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
@@ -323,7 +315,7 @@ async def delete_message(
     """
     Delete a specific message by its ID, ensuring its chat belongs to the current user.
     """
-    # Get message to find chat_id
+
     message = await chat_service.get_message_by_id(message_id)
     if not message:
         raise HTTPException(
@@ -340,18 +332,14 @@ async def delete_message(
             detail=f"Access denied to delete message {message_id}.",
         )
 
-    # Proceed with deletion
     success = await chat_service.delete_message(message_id)
     if not success:
-        # This might happen if the message was deleted between checks, or DB error
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete message {message_id}.",
         )
     return None
-
-
-# --- LLM Interaction Endpoint (User-Aware) ---
 
 
 @router.post("/ask", response_model=ChatAnswer, summary="Ask a question to the LLM")
@@ -367,17 +355,17 @@ async def ask_question(
     If no chat_id is provided, a new chat will be created for the user.
     """
     try:
-        # Service method now handles chat_id validation and user association
+
         response = await chat_service.process_question(
             content=question_data.content,
-            user=current_user,  # Pass the authenticated user object
+            user=current_user,
             chat_id=question_data.chat_id,
         )
         return response
 
     except ValueError as ve:
         logger.error(f"Validation error during /ask: {str(ve)}")
-        # Check if the error is about chat ownership to return 404/403
+
         if "not found or does not belong to user" in str(ve):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(ve))
         else:

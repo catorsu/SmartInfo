@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Markdown processing module: Provides a collection of utility functions to convert HTML or other text formats to Markdown.
 Main features:
@@ -133,19 +131,15 @@ def clean_markdown_links(
     if not raw_text:
         return ""
 
-    # Remove image links
     text_without_images = strip_image_links(raw_text)
 
-    # Use comprehensive regex to clean irrelevant links
     text_filtered = LINK_FILTER_REGEX.sub("", text_without_images)
     if not text_filtered:
         return ""
 
-    # Extract remaining Markdown links
     link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
     extracted_links = re.findall(link_pattern, text_filtered)
 
-    # Filter out links with URLs in exclude_urls
     filtered_links = []
     for text, url in extracted_links:
         full_url = urljoin(base_url, url)
@@ -153,7 +147,6 @@ def clean_markdown_links(
             filtered_links.append(f"[{text}]({full_url})")
             continue
 
-        # Check if the full URL is in the exclude_urls list
         if not exclude_urls or full_url not in exclude_urls:
             filtered_links.append(f"[{text}]({full_url})")
         else:

@@ -1,7 +1,3 @@
-# backend/main.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Main application file for the SmartInfo Backend.
 Sets up the FastAPI application, manages application lifespan (DB connection, LLM pool),
@@ -15,10 +11,10 @@ from typing import Optional
 import asyncpg
 from dotenv import load_dotenv
 import logging
-import argparse  # Add argparse for potential future direct script execution
+import argparse
 import redis.asyncio as redis
 
-# Load environment variable configuration
+
 load_dotenv()
 
 
@@ -26,8 +22,7 @@ from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# --- Logging Setup ---
-# Determine log level from environment variable or default to INFO
+
 log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_name, logging.INFO)
 if not isinstance(log_level, int):  # Fallback if getattr fails or returns non-int
@@ -37,34 +32,28 @@ if not isinstance(log_level, int):  # Fallback if getattr fails or returns non-i
     )
     log_level = logging.INFO
 
-# Set up logging BEFORE other imports that might log
+
 logging.basicConfig(
-    level=log_level,  # Use the determined log level
+    level=log_level,
     format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     stream=sys.stdout,
 )
-# Set logger level for httpx's warnings to WARNING to reduce noise
+
 logging.getLogger("httpx").setLevel(logging.WARNING)
-# Set uvicorn access log level based on our setting if desired (optional)
-# logging.getLogger("uvicorn.access").setLevel(log_level)
 
 
 logger = logging.getLogger(__name__)
 
 
-# --- Core Application Imports ---
-from config import config  # Import the global config instance
+from config import config
 from db.connection import (
     init_db_connection,
     get_db_connection_context,
 )
-from db.repositories import UserPreferenceRepository  # 更新为用户偏好仓库
-from core.llm import LLMClientPool  # Import from new location
-from api import api_router  # Import the main API router
-
-
-# --- Application Lifespan Management ---
+from db.repositories import UserPreferenceRepository
+from core.llm import LLMClientPool
+from api import api_router
 
 
 @asynccontextmanager
@@ -80,30 +69,26 @@ async def lifespan(app: FastAPI):
     logger.info("Application lifespan starting...")
     db_manager = None
 
-    # == Startup ==
     try:
-        # 1. Initialize Database Connection Manager
-        # This also creates the DB file and tables if they don't exist.
+
         logger.info("Initializing Database Connection Manager...")
         db_manager = await init_db_connection()
         logger.info("Database Connection Manager initialized successfully.")
 
-        # 2. Initialize Redis connection pool for WebSocket communication
         logger.info("Initializing Redis connection pool...")
         app.state.redis_pool = redis.ConnectionPool.from_url(
             os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
-            decode_responses=True,  # Decode responses for easier handling
+            decode_responses=True,
         )
         app.state.redis_client = redis.Redis(connection_pool=app.state.redis_pool)
         logger.info("Async Redis client initialized.")
 
     except Exception as e:
         logger.critical(f"Application startup failed: {e}", exc_info=True)
-        # Perform cleanup even if startup fails partially
-        if db_manager:
-            await db_manager._cleanup()  # Use manager's async cleanup
 
-        # Cleanup Redis if it was initialized
+        if db_manager:
+            await db_manager._cleanup()
+
         if hasattr(app.state, "redis_client"):
             await app.state.redis_client.close()
         if hasattr(app.state, "redis_pool"):
@@ -111,13 +96,10 @@ async def lifespan(app: FastAPI):
 
         raise RuntimeError("Application startup failed.") from e
 
-    # Yield control to the running application
     yield
 
-    # == Shutdown ==
     logger.info("Application lifespan shutting down...")
 
-    # Close Redis connection
     if hasattr(app.state, "redis_client"):
         try:
             await app.state.redis_client.close()
@@ -135,7 +117,7 @@ async def lifespan(app: FastAPI):
     if db_manager:
         logger.info("Closing database connection...")
         try:
-            # 使用异步清理方法
+
             await db_manager._cleanup()
             logger.info("Database connection resources released.")
         except Exception as e:
@@ -148,38 +130,30 @@ async def lifespan(app: FastAPI):
     logger.info("Application lifespan finished.")
 
 
-# --- FastAPI Application Setup ---
-
-# Create FastAPI app instance with lifespan manager
 app = FastAPI(
     title="SmartInfo Backend",
     description="API for news aggregation, analysis, and chat features.",
-    version="1.0.0",  # Consider making version dynamic
+    version="1.0.0",
     lifespan=lifespan,
 )
 
-# Add CORS middleware
-# Configure origins according to your frontend deployment
+
 origins = [
-    "http://localhost:3000",  # 本地环回地址
-    "http://172.18.0.1:3000",  # WSL/Docker 虚拟地址
-    "http://192.168.0.107:3000",  # 局域网IP请求
+    "http://localhost:3000",
+    "http://172.18.0.1:3000",
+    "http://192.168.0.107:3000",
 ]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Use specific origins in production
-    # allow_origins=["*"], # Use "*" for development/testing if needed, less secure
+    allow_origins=origins,
+    # allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all standard methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Include the main API router (which includes versioned routers)
-# All API endpoints will be under /api path
+
 app.include_router(api_router, prefix="/api")
-
-
-# --- Root and Health Check Endpoints ---
 
 
 @app.get("/", tags=["General"], summary="Root Endpoint")
@@ -190,35 +164,30 @@ async def read_root():
 
 @app.get("/health", tags=["General"], summary="Health Check")
 async def health_check(
-    db_context=Depends(get_db_connection_context),  # Inject DB context manager
+    db_context=Depends(get_db_connection_context),
 ):
     """
     Health check endpoint to verify the API is running and the database is reachable.
     """
     db_status = "unknown"
     try:
-        # Acquire connection using the context manager
+
         async with db_context as conn:
-            # Execute a simple query to check the connection
+
             await conn.fetchval("SELECT 1")
             db_status = "connected"
             logger.debug("Database health check successful.")
     except (asyncpg.PostgresError, OSError, TimeoutError) as e:
-        # Catch specific DB errors, network errors, or timeouts
+
         db_status = f"error: {type(e).__name__} - {str(e)}"
-        logger.error(
-            f"Database health check failed: {db_status}", exc_info=False
-        )  # Log less verbosely for health check failures
+        logger.error(f"Database health check failed: {db_status}", exc_info=False)
     except Exception as e:
-        # Catch any other unexpected errors
+
         db_status = f"unexpected_error: {type(e).__name__} - {str(e)}"
         logger.error(
             f"Unexpected error during database health check: {db_status}", exc_info=True
         )
 
-    # Return the overall API status and the database status
-    # API is considered 'healthy' if it's responding, even if DB has issues.
-    # Clients can check the db_status field for dependency health.
     return {"api_status": "healthy", "database_status": db_status}
 
 
@@ -228,36 +197,25 @@ async def redis_test(request: Request):
     Test endpoint to verify the Redis connection is working correctly.
     """
     try:
-        # Get Redis client directly from app state
+
         redis_client = request.app.state.redis_client
 
-        # Ping Redis to ensure connection is alive
         await redis_client.ping()
 
-        # Try a simple publish/subscribe operation
         test_channel = "redis_test_channel"
         test_message = "Hello Redis!"
 
-        # Create a pubsub instance and subscribe to test channel
         pubsub = redis_client.pubsub()
         await pubsub.subscribe(test_channel)
 
-        # Publish a test message
         await redis_client.publish(test_channel, test_message)
 
-        # Get the published message
-        message = await pubsub.get_message(
-            timeout=1.0
-        )  # First message is subscribe confirmation
-        message = await pubsub.get_message(
-            timeout=1.0
-        )  # Second message is our published message
+        message = await pubsub.get_message(timeout=1.0)
+        message = await pubsub.get_message(timeout=1.0)
 
-        # Clean up
         await pubsub.unsubscribe(test_channel)
         await pubsub.close()
 
-        # Return success result
         return {
             "redis_status": "connected",
             "pubsub_test": (
@@ -267,9 +225,6 @@ async def redis_test(request: Request):
         }
     except Exception as e:
         return {"redis_status": "error", "error": str(e)}
-
-
-# --- Execution Entry Point ---
 
 
 def start_api():
@@ -290,7 +245,7 @@ def start_api():
         "y",
         "yes",
     )
-    # Log level for uvicorn itself. Match our app's log level.
+
     uvicorn_log_level = logging.getLevelName(log_level).lower()
 
     logger.info(
@@ -301,11 +256,10 @@ def start_api():
         host=host,
         port=port,
         reload=reload_enabled,
-        log_level=uvicorn_log_level,  # Pass log level to uvicorn
+        log_level=uvicorn_log_level,
     )
 
 
 if __name__ == "__main__":
-    # Although uvicorn main:app bypasses this, keep it for potential direct execution
-    # You could add argparse here if needed for direct script runs
+
     start_api()

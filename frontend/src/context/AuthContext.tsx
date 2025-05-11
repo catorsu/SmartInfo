@@ -1,70 +1,58 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/router';
-// Import actual service functions
 import { loginUser, logoutUser, registerUser, fetchUserProfile, User as UserType } from '../services/authService';
-import api from '../services/api'; // Import api to potentially clear auth header on logout error
+import api from '../services/api';
 
-// Define the shape of the user object based on service type
+
 type User = UserType;
 
-// Define the shape of the context value
 interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  loading: boolean; // Indicates initial auth check or ongoing login/logout
+  loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>; // Make logout async
-  signup: (username: string, password: string) => Promise<void>; // Implementation of signup function
-  refreshChatList: () => void; // Function to trigger chat list refresh
-  setRefreshChatListCallback: (callback: (() => void) | null) => void; // New
-  updateUserProfile: (updatedUser: User) => void; // New function
+  logout: () => Promise<void>; 
+  signup: (username: string, password: string) => Promise<void>; 
+  refreshChatList: () => void; 
+  setRefreshChatListCallback: (callback: (() => void) | null) => void; 
+  updateUserProfile: (updatedUser: User) => void;
 }
 
-// Create the context with a default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Define the props for the AuthProvider component
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Create the AuthProvider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [refreshChatListCallback, setRefreshChatListCallbackInternal] = useState<(() => void) | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true); // Start loading until initial check is done
+  const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
 
-  // Effect to check for existing token on mount and validate it
   useEffect(() => {
     const validateToken = async () => {
       const storedToken = localStorage.getItem('authToken');
       if (storedToken) {
         console.log("Found token in localStorage. Validating...");
-        // 设置令牌用于API调用
         setToken(storedToken);
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
         
         try {
-          // 使用真实API调用检查令牌是否有效
           const fetchedUser = await fetchUserProfile();
           console.log("Token validation successful. User:", fetchedUser);
-          
-          // 设置验证后的用户状态
           setUser(fetchedUser);
           setIsAuthenticated(true);
           console.log("Auth state initialized from validated token.");
         } catch (error: any) {
           console.error("Token validation failed:", error.message);
-          // 清除无效的令牌和用户信息
           localStorage.removeItem('authToken');
           setToken(null);
           setUser(null);
           setIsAuthenticated(false);
-          // 清除 Axios 默认认证头
           if (api.defaults.headers.common['Authorization']) {
             delete api.defaults.headers.common['Authorization'];
           }
@@ -75,13 +63,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(null);
         setToken(null);
       }
-      setLoading(false); // Finished initial check/validation
+      setLoading(false);
     };
 
     validateToken();
-  }, []); // Run only once on mount
+  }, []);
 
-  // 更新API认证头的额外效果
+
   useEffect(() => {
     if (token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -94,31 +82,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading(true);
     console.log("Logging out user.");
     try {
-      // Optional: Call backend logout endpoint if it exists/is needed
-      // await logoutUser();
       console.log("Backend logout call skipped/successful (if implemented).");
     } catch (error) {
         console.error('Backend logout failed:', error);
-        // Decide if logout should proceed even if backend call fails
-        // message.error("Logout failed on server, but logging out locally.");
     } finally {
-        // Always clear local state and storage regardless of backend call success
         localStorage.removeItem('authToken');
         setToken(null);
         setUser(null);
         setIsAuthenticated(false);
-        // Optionally clear Authorization header from default Axios instance
         if (api.defaults.headers.common['Authorization']) {
             delete api.defaults.headers.common['Authorization'];
         }
         console.log("Token removed, state reset.");
         setLoading(false);
-        // Redirect to login page after logout
         router.push('/login');
     }
   };
 
-  // Effect to listen for the custom auth-error event
   useEffect(() => {
     const handleAuthError = (event: CustomEvent) => {
       console.log('Auth error event received:', event.detail);
@@ -128,41 +108,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    // Add event listener
     window.addEventListener('auth-error', handleAuthError as EventListener);
 
-    // Cleanup function to remove event listener
     return () => {
       console.log('Removing auth-error event listener.');
       window.removeEventListener('auth-error', handleAuthError as EventListener);
     };
-  }, [logout]); // Depend on logout function
+  }, [logout]);
 
   const login = async (username: string, password: string) => {
     setLoading(true);
     try {
       console.log(`Attempting login for user: ${username}`);
-      // Call the actual API service
-      const { access_token: receivedToken, user: loggedInUser } = await loginUser({ username, password }); // Corrected destructuring
+      const { access_token: receivedToken, user: loggedInUser } = await loginUser({ username, password });
 
       localStorage.setItem('authToken', receivedToken);
       setToken(receivedToken);
-      setUser(loggedInUser); // Assuming backend returns user object on login
+      setUser(loggedInUser);
       setIsAuthenticated(true);
       console.log("Login successful, token stored.");
 
-      // Redirect to the page the user was trying to access, or home
       const returnUrl = (router.query.returnUrl as string) || '/';
       router.push(returnUrl);
 
     } catch (error) {
       console.error('Login failed:', error);
-      // Clear any potentially partially set state
       localStorage.removeItem('authToken');
       setToken(null);
       setUser(null);
       setIsAuthenticated(false);
-      // Rethrow the error so the login page can display it
       throw error;
     } finally {
       setLoading(false);
@@ -174,36 +148,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log(`Attempting to register user: ${username}`);
 
-      // Call the registration service function, which now returns LoginResponse
       const { access_token: receivedToken, user: loggedInUser } = await registerUser({ username, password });
 
       console.log("Registration successful, automatically logging in.");
 
-      // Directly update authentication state after successful registration
       localStorage.setItem('authToken', receivedToken);
       setToken(receivedToken);
       setUser(loggedInUser);
       setIsAuthenticated(true);
       console.log("Registration and auto-login successful, token stored.");
 
-      // Redirect to the main page after successful registration and login
       router.push('/');
 
     } catch (error) {
       console.error('Registration failed:', error);
-      // Clear any potentially partially set state
       localStorage.removeItem('authToken');
       setToken(null);
       setUser(null);
       setIsAuthenticated(false);
-      // Rethrow the error so the registration page can display it
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // Placeholder function - MainLayout will provide the actual implementation
   const refreshChatList = () => {
     if (refreshChatListCallback) {
       console.log("AuthContext: refreshChatList called, invoking callback.");
@@ -215,15 +183,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const updateUserProfile = (updatedUser: User) => {
     setUser(updatedUser);
-    // Optionally, you might want to update localStorage if you store the whole user object there,
-    // but typically only the token is stored.
     console.log("AuthContext: User profile updated.", updatedUser);
   };
 
   const setRefreshChatListCallback = (callback: (() => void) | null) => {
     setRefreshChatListCallbackInternal(() => callback);
   };
-
 
   const contextValue: AuthContextType = {
     isAuthenticated,
@@ -234,21 +199,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     signup,
     refreshChatList,
-    setRefreshChatListCallback, // Provide the setter
-    updateUserProfile, // Add to context
+    setRefreshChatListCallback, 
+    updateUserProfile,
   };
 
-  // Render children only after initial loading is complete
-  // or wrap children in a loading check if preferred
   return (
     <AuthContext.Provider value={contextValue}>
-      {/* {!loading ? children : <Spin tip="Initializing..." />} */}
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook to use the AuthContext
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {

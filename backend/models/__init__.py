@@ -1,13 +1,8 @@
-# backend/models/__init__.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Models module for the application.
 Imports all model classes and re-exports them for convenient imports elsewhere.
 """
 
-# Schemas for request/response models
 from models.schemas.user import User, UserCreate
 from models.schemas.news import (
     NewsItem as News,  # Alias NewsItem as News
@@ -26,7 +21,6 @@ from models.schemas.news import (
     AnalyzeContentRequest,
     AnalysisResult,
     UpdateAnalysisRequest,
-    # Import News Response Schemas
     NewsCategoryResponse,
     NewsSourceResponse,
     NewsResponse,
@@ -37,7 +31,7 @@ from models.schemas.api_key import (
     ApiKeyCreate,
     ApiKeyUpdate,
     ApiKeyResponse,
-)  # Import ApiKeyResponse
+)
 from models.schemas.settings import (
     UserPreference,
     UserPreferenceBase,
@@ -50,21 +44,18 @@ from models.schemas.chat import (
     MessageCreate,
     ChatAnswer,
     Question,
-    # Import Chat Response Schemas
     MessageResponse,
     ChatResponse,
     ChatListResponseItem,
 )
 
-# Import UserInDB if needed internally, but don't export typically
+
 from models.schemas.user import UserInDB
 
-# Re-export models for convenient imports elsewhere
+
 __all__ = [
-    # User related
     "User",
     "UserCreate",
-    # News related
     "News",
     "NewsCreate",
     "NewsUpdate",
@@ -82,21 +73,17 @@ __all__ = [
     "AnalysisResult",
     "UpdateAnalysisRequest",
     "FetchHistoryItemResponse",
-    # API Key related
     "ApiKey",
     "ApiKeyCreate",
-    # Settings related
     "UserPreference",
     "UserPreferenceBase",
     "UserPreferenceUpdate",
-    # Chat related
     "Chat",
     "ChatCreate",
     "Message",
     "MessageCreate",
     "ChatAnswer",
     "Question",
-    # Response Models
     "NewsCategoryResponse",
     "NewsSourceResponse",
     "NewsResponse",

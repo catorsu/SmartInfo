@@ -1,15 +1,10 @@
-# backend/models/api_key.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Pydantic models for API key related data.
 """
+
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
-
-# --- API Key Models ---
 
 
 class ApiKeyFields(BaseModel):

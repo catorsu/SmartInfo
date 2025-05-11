@@ -18,7 +18,7 @@ import {
   Alert,
   InputNumber,
   Tag,
-  Paragraph // Add Paragraph
+  Paragraph
 } from 'antd';
 import {
   EditOutlined,
@@ -29,25 +29,24 @@ import {
   ApiOutlined,
   SettingOutlined,
   SaveOutlined,
-  UserOutlined, // For Account tab
-  LockOutlined, // For password fields
-  LogoutOutlined, // For Logout button
+  UserOutlined,
+  LockOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import type { TableProps } from 'antd/lib/table';
 import { ApiKey, NewsCategory, NewsSource } from '@/utils/types';
 import * as settingsService from '@/services/settingsService';
 import * as newsService from '@/services/newsService';
-import * as authService from '@/services/authService'; // Import authService
+import * as authService from '@/services/authService';
 import MainLayout from '../components/layout/MainLayout';
-import { handleApiError, extractErrorMessage } from '../utils/apiErrorHandler'; // Import extractErrorMessage
-import withAuth from '@/components/auth/withAuth'; // Import the HOC
-import { useAuth } from '../context/AuthContext'; // Import useAuth
+import { handleApiError, extractErrorMessage } from '../utils/apiErrorHandler';
+import withAuth from '@/components/auth/withAuth';
+import { useAuth } from '../context/AuthContext';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-// API Key form modal
 interface ApiKeyFormValues {
   model: string;
   base_url: string;
@@ -58,8 +57,7 @@ interface ApiKeyFormValues {
 }
 
 const Settings: React.FC = () => {
-  const { user, logout, loading: authLoading, updateUserProfile } = useAuth(); // Add updateUserProfile
-  // State
+  const { user, logout, loading: authLoading, updateUserProfile } = useAuth();
   const [settings, setSettings] = useState<Record<string, any>>({});
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [categories, setCategories] = useState<NewsCategory[]>([]);
@@ -68,35 +66,29 @@ const Settings: React.FC = () => {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [apiKeysLoading, setApiKeysLoading] = useState(true);
-  const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null); // Updated error state type
+  const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null);
 
-  // API Key modal state
   const [isApiKeyModalVisible, setIsApiKeyModalVisible] = useState(false);
   const [apiKeyForm] = Form.useForm<ApiKeyFormValues>();
   const [editingApiKeyId, setEditingApiKeyId] = useState<number | null>(null);
   const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null);
 
-  // Source modal state
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
   const [sourceForm] = Form.useForm<{ name: string; url: string; category_id: number }>();
   const [editingSourceId, setEditingSourceId] = useState<number | null>(null);
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [isAddCategoryModalVisible, setIsAddCategoryModalVisible] = useState(false);
 
-  // Settings form
   const [settingsForm] = Form.useForm();
 
-  // Password change modal state
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
   const [passwordForm] = Form.useForm();
 
-  // Username change modal state
   const [isUsernameModalVisible, setIsUsernameModalVisible] = useState(false);
   const [usernameChangeLoading, setUsernameChangeLoading] = useState(false);
   const [usernameForm] = Form.useForm();
 
-  // Load initial data
   useEffect(() => {
     loadAllData();
   }, []);
@@ -104,18 +96,17 @@ const Settings: React.FC = () => {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      setError(null); // Reset error state
+      setError(null);
       await Promise.all([
         loadSettings(),
         loadApiKeys(),
         loadCategories(),
         loadSources()
       ]);
-    } catch (err: any) { // Catch the error here
+    } catch (err: any) {
       console.error('Failed to load settings data:', err);
-      const errorDetails = extractErrorMessage(err); // Use the structured error handler
-      setError(errorDetails); // Set the structured error state
-      // No need for global message here
+      const errorDetails = extractErrorMessage(err);
+      setError(errorDetails);
     } finally {
       setLoading(false);
     }
@@ -124,14 +115,12 @@ const Settings: React.FC = () => {
   const loadSettings = async () => {
     try {
       setSettingsLoading(true);
-      // No need to reset error here, loadAllData does it
       const settingsData = await settingsService.getSettings();
       setSettings(settingsData);
       settingsForm.setFieldsValue(settingsData);
     } catch (err: any) {
       const errorDetails = extractErrorMessage(err);
-      setError(errorDetails); // Set error state
-      // No need for global message
+      setError(errorDetails);
     } finally {
       setSettingsLoading(false);
     }
@@ -140,13 +129,11 @@ const Settings: React.FC = () => {
   const loadApiKeys = async () => {
     try {
       setApiKeysLoading(true);
-      // No need to reset error here
       const apiKeysData = await settingsService.getApiKeys();
       setApiKeys(apiKeysData);
     } catch (err: any) {
       const errorDetails = extractErrorMessage(err);
-      setError(errorDetails); // Set error state
-      // No need for global message
+      setError(errorDetails);
     } finally {
       setApiKeysLoading(false);
     }
@@ -154,33 +141,21 @@ const Settings: React.FC = () => {
   
   const loadCategories = async () => {
     try {
-      // No need for loading/error state specific to categories here,
-      // as they are part of the overall settings page load.
       const categoriesData = await newsService.getCategories();
       setCategories(categoriesData);
     } catch (err: any) {
       console.error('Failed to load categories:', err);
-      // Decide if category loading failure should block the whole page or just affect source dropdown
-      // For now, let's just log and let the page load with potentially empty category list.
-      // If it should block, set the main error state:
-      // const errorDetails = extractErrorMessage(err);
-      // setError(errorDetails);
     }
   };
   
   const loadSources = async () => {
     try {
-      // No need for loading/error state specific to sources here
       const sourcesData = await newsService.getSources();
       setSources(sourcesData);
     } catch (err: any) {
       console.error('Failed to load sources:', err);
-      // Decide if source loading failure should block the whole page
-      // For now, just log.
     }
   };
-  
-  // Settings management
   const handleSettingChange = (key: string, value: any) => {
     setSettings(prev => ({
       ...prev,
@@ -214,8 +189,6 @@ const Settings: React.FC = () => {
       setLoading(false);
     }
   };
-  
-  // API Key management
   const showAddApiKeyModal = () => {
     apiKeyForm.resetFields();
     setEditingApiKey(null);
@@ -226,21 +199,19 @@ const Settings: React.FC = () => {
   const showEditApiKeyModal = (record: ApiKey) => {
     setEditingApiKey(record);
     setEditingApiKeyId(record.id);
-
-    // Fetch the API key details including the actual key value
     settingsService.getApiKey(record.id)
       .then(apiKeyData => {
-        if (apiKeyData === null) { // Handle not found case
+        if (apiKeyData === null) {
           message.error('API密钥未找到或已删除');
-          setIsApiKeyModalVisible(false); // Ensure modal is closed
-          setEditingApiKey(null); // Clear editing state
+          setIsApiKeyModalVisible(false);
+          setEditingApiKey(null);
           setEditingApiKeyId(null);
           return;
         }
         apiKeyForm.setFieldsValue({
           model: apiKeyData.model,
           base_url: apiKeyData.base_url,
-          api_key: apiKeyData.api_key, // Pre-fill with actual API key
+          api_key: apiKeyData.api_key,
           context: apiKeyData.context,
           max_output_tokens: apiKeyData.max_output_tokens,
           description: apiKeyData.description
@@ -249,8 +220,8 @@ const Settings: React.FC = () => {
       })
       .catch(error => { // This catch will now only handle non-404 errors
         handleApiError(error, '加载API密钥详情失败');
-        setIsApiKeyModalVisible(false); // Ensure modal is closed on error
-        setEditingApiKey(null); // Clear editing state
+        setIsApiKeyModalVisible(false);
+        setEditingApiKey(null);
         setEditingApiKeyId(null);
       });
   };
@@ -260,11 +231,9 @@ const Settings: React.FC = () => {
       const values = await apiKeyForm.validateFields();
       
       if (editingApiKey) {
-        // Update existing
         await settingsService.updateApiKey(editingApiKeyId!, values);
         message.success('API密钥更新成功');
       } else {
-        // Create new
         await settingsService.createApiKey(values);
         message.success('API密钥创建成功');
       }
@@ -285,8 +254,6 @@ const Settings: React.FC = () => {
       handleApiError(error, '删除API密钥失败');
     }
   };
-  
-  // Add test API key function
   const handleTestApiKey = async (apiKeyId: number) => {
     const testMessage = message.loading('正在测试API密钥连接...', 0);
     
@@ -304,8 +271,6 @@ const Settings: React.FC = () => {
       handleApiError(error, '测试API密钥失败');
     }
   };
-  
-  // Source management
   const showAddSourceModal = () => {
     sourceForm.resetFields();
     setEditingSourceId(null);
@@ -327,11 +292,9 @@ const Settings: React.FC = () => {
       const values = await sourceForm.validateFields();
       
       if (editingSourceId) {
-        // Update existing
         await newsService.updateSource(editingSourceId, values);
         message.success('Source updated successfully');
       } else {
-        // Create new
         await newsService.createSource(values);
         message.success('Source created successfully');
       }
@@ -354,8 +317,6 @@ const Settings: React.FC = () => {
       message.error('Failed to delete source');
     }
   };
-  
-  // Category management
   const handleAddCategoryClick = () => {
     setNewCategoryName('');
     setIsAddCategoryModalVisible(true);
@@ -372,8 +333,6 @@ const Settings: React.FC = () => {
       message.success('类别创建成功');
       await loadCategories();
       setIsAddCategoryModalVisible(false);
-      
-      // Optionally select the new category in the form
       sourceForm.setFieldsValue({ category_id: newCategory.id });
     } catch (error) {
       handleApiError(error, '创建类别失败');
@@ -398,8 +357,6 @@ const Settings: React.FC = () => {
       }
     });
   };
-  
-  // API Key columns
   const apiKeyColumns: TableProps<ApiKey>['columns'] = [
     {
       title: '模型',
@@ -425,7 +382,7 @@ const Settings: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_date',
       key: 'created_date',
-      render: (date?: string) => date ? new Date(date).toLocaleString() : '-', // Use ISO string directly
+      render: (date?: string) => date ? new Date(date).toLocaleString() : '-',
     },
     {
       title: '说明',
@@ -527,7 +484,6 @@ const Settings: React.FC = () => {
       await handleChangePassword(values);
     } catch (formError) {
       console.log('Password form validation failed:', formError);
-      // AntD form will show errors on fields
     }
   };
 
@@ -558,10 +514,9 @@ const Settings: React.FC = () => {
         current_password: values.currentPassword,
       });
       message.success('Username successfully changed!');
-      // Access updateUserProfile from the useAuth hook
       const { updateUserProfile } = useAuth();
       if (typeof updateUserProfile === 'function') {
-          updateUserProfile(updatedUser); // Update AuthContext
+          updateUserProfile(updatedUser);
       }
       setIsUsernameModalVisible(false);
       usernameForm.resetFields();
@@ -571,8 +526,6 @@ const Settings: React.FC = () => {
       setUsernameChangeLoading(false);
     }
   };
-
-  // Update handleChangePassword to use the service
   const handleChangePassword = async (values: any) => {
     setPasswordChangeLoading(true);
     try {
@@ -595,7 +548,6 @@ const Settings: React.FC = () => {
       <div style={{ padding: '24px' }}>
         <Title level={2}>系统设置</Title>
 
-        {/* Display error alert if error state is set */}
         {error && (
           <Alert
             message="Error Loading Settings"
@@ -795,7 +747,6 @@ const Settings: React.FC = () => {
           </TabPane>
         </Tabs>
 
-        {/* Username Change Modal (add this alongside the password change modal) */}
         <Modal
           title="Change Username"
           open={isUsernameModalVisible}
@@ -826,7 +777,6 @@ const Settings: React.FC = () => {
           </Form>
         </Modal>
 
-        {/* API Key Modal */}
         <Modal
           title={editingApiKey ? '编辑API密钥' : '添加API密钥'}
           open={isApiKeyModalVisible}
@@ -883,10 +833,10 @@ const Settings: React.FC = () => {
                 { type: 'number', min: 1, message: '最大输出Token必须为正整数' },
                 ({ getFieldValue }) => ({
                   validator(_, value) {
-                    if (!value || getFieldValue('context') > value) { // Changed > to >=
-                      return Promise.resolve();
+                    if (!value || getFieldValue('context') > value) { 
+                    return Promise.resolve();
                     }
-                    return Promise.reject(new Error('上下文长度必须大于或等于最大输出Token')); // Updated error message
+                    return Promise.reject(new Error('上下文长度必须大于或等于最大输出Token'));
                   },
                 }),
               ]}
@@ -903,7 +853,6 @@ const Settings: React.FC = () => {
           </Form>
         </Modal>
 
-        {/* Password Change Modal (outside Tabs, but within the main return) */}
         <Modal
           title="Change Password"
           open={isPasswordModalVisible}
@@ -911,7 +860,7 @@ const Settings: React.FC = () => {
           onCancel={handlePasswordModalCancel}
           confirmLoading={passwordChangeLoading}
           okText="Update Password"
-          destroyOnClose // Resets form fields when modal is closed
+          destroyOnClose
         >
           <Form
             form={passwordForm}
@@ -958,7 +907,6 @@ const Settings: React.FC = () => {
           </Form>
         </Modal>
 
-        {/* Source Modal */}
         <Modal
           title={editingSourceId ? '编辑来源' : '添加来源'}
           open={isSourceModalVisible}
@@ -1033,7 +981,6 @@ const Settings: React.FC = () => {
           </Form>
         </Modal>
 
-        {/* Add Category Modal */}
         <Modal
           title="添加新类别"
           open={isAddCategoryModalVisible}
@@ -1060,5 +1007,4 @@ const Settings: React.FC = () => {
   );
 };
 
-// Wrap the component with the HOC for authentication
 export default withAuth(Settings);

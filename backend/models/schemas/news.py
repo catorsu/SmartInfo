@@ -1,7 +1,3 @@
-# backend/models/news.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Pydantic models for news related data (sources, categories, items, requests).
 """
@@ -9,8 +5,6 @@ Pydantic models for news related data (sources, categories, items, requests).
 from datetime import date, datetime
 from pydantic import BaseModel, Field, AnyHttpUrl, ConfigDict
 from typing import List, Optional, Dict, Any
-
-# --- News Category Models ---
 
 
 class NewsCategoryFields(BaseModel):
@@ -45,9 +39,6 @@ class NewsCategory(NewsCategoryFields):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Response Models ---
-
-
 class NewsCategoryResponse(BaseModel):
     """Schema for representing a news category in API responses (excludes user_id)."""
 
@@ -58,9 +49,6 @@ class NewsCategoryResponse(BaseModel):
         description="Number of news sources associated with this category (optional)",
     )
     model_config = ConfigDict(from_attributes=True)
-
-
-# --- News Source Models ---
 
 
 class NewsSourceFields(BaseModel):
@@ -124,9 +112,6 @@ class NewsSourceResponse(BaseModel):
         description="Name of the category this source belongs to (for convenience)",
     )
     model_config = ConfigDict(from_attributes=True)
-
-
-# --- News Item Models ---
 
 
 class NewsItemFields(BaseModel):
@@ -234,9 +219,6 @@ class NewsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Request/Response Models for News Operations ---
-
-
 class FetchSourceRequest(BaseModel):
     """Schema for requesting fetching from a specific source."""
 
@@ -301,7 +283,6 @@ class UpdateAnalysisRequest(BaseModel):
     )
 
 
-# --- Fetch History Models ---
 class FetchHistoryItemResponse(BaseModel):
     source_id: int
     source_name: str

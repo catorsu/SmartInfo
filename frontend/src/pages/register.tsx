@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, Alert, Spin } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/router';
-import { useAuth } from '../context/AuthContext'; // Import the useAuth hook
-import styles from '../styles/LoginPage.module.css'; // Reuse the login page styles
+import { useAuth } from '../context/AuthContext';
+import styles from '../styles/LoginPage.module.css';
 
 const { Title } = Typography;
 
@@ -19,8 +19,6 @@ const RegisterPage: React.FC = () => {
     const [success, setSuccess] = useState<string | null>(null);
     const [localLoading, setLocalLoading] = useState(false);
     const [form] = Form.useForm();
-    
-    // Combine local and auth loading states
     const loading = localLoading || authLoading;
 
     const onFinish = async (values: RegisterFormData) => {
@@ -31,8 +29,6 @@ const RegisterPage: React.FC = () => {
         try {
             await signup(values.username, values.password);
 
-            // The signup function in AuthContext now handles auto-login and redirection
-            // No need to set success message or redirect here
             form.resetFields();
             
         } catch (err: any) {

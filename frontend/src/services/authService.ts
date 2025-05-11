@@ -1,31 +1,31 @@
-import api from './api'; // Import the configured Axios instance
-import { handleApiError } from '../utils/apiErrorHandler'; // Import error handler
+import api from './api';
+import { handleApiError } from '../utils/apiErrorHandler';
 
-// Define the expected shape of login credentials
+
 interface LoginCredentials {
     username: string;
     password: string;
 }
 
-// Define the expected shape of the login response (adjust based on backend)
-export interface LoginResponse { // Exported for use in AuthContext
-    access_token: string; // Changed from 'token' to 'access_token'
-    token_type: string; // Added token_type as per backend response
-    user: User; // Use the imported User type
+
+export interface LoginResponse {
+    access_token: string;
+    token_type: string;
+    user: User;
 }
 
-// Define the expected shape of signup data (adjust based on backend)
+
 interface SignupData {
     username: string;
     password: string;
-    // other required fields
+
 }
 
-// Define the User interface for profile data
+
 export interface User {
     id: string;
     username: string;
-    // other user fields that the backend might return
+
 }
 
 /**
@@ -35,7 +35,6 @@ export interface User {
  */
 export const loginUser = async (credentials: LoginCredentials): Promise<LoginResponse> => {
     try {
-        // Send credentials as form data, as required by the backend's OAuth2PasswordRequestForm
         const formData = new URLSearchParams();
         formData.append('username', credentials.username);
         formData.append('password', credentials.password);
@@ -47,7 +46,6 @@ export const loginUser = async (credentials: LoginCredentials): Promise<LoginRes
         });
         return response.data;
     } catch (error) {
-        // Use the centralized error handler
         throw handleApiError(error, 'Login failed');
     }
 };
@@ -65,7 +63,6 @@ export const logoutUser = async (): Promise<void> => {
         // await api.post('/api/auth/logout');
         console.log("Logout request potentially sent to /api/auth/logout (if implemented).");
     } catch (error) {
-        // Use the centralized error handler
         throw handleApiError(error, 'Logout failed');
     }
 };
@@ -75,12 +72,11 @@ export const logoutUser = async (): Promise<void> => {
  * @param userData - The data for the new user.
  * @returns A promise that resolves with the registration response (which is now the same as login response).
  */
-export const registerUser = async (userData: SignupData): Promise<LoginResponse> => { // Changed return type to LoginResponse
+export const registerUser = async (userData: SignupData): Promise<LoginResponse> => {
     try {
-        const response = await api.post<LoginResponse>('/api/auth/register', userData); // Changed expected response type
+        const response = await api.post<LoginResponse>('/api/auth/register', userData);
         return response.data;
     } catch (error) {
-        // Use the centralized error handler
         throw handleApiError(error, 'Registration failed');
     }
 };
@@ -92,15 +88,14 @@ export const registerUser = async (userData: SignupData): Promise<LoginResponse>
  */
 export const fetchUserProfile = async (): Promise<User> => {
     try {
-        // Call the /users/me endpoint which is standard in FastAPI applications
         const response = await api.get<User>('/api/auth/users/me');
         return response.data;
     } catch (error) {
         throw handleApiError(error, 'Failed to fetch user profile');
     }
-}
+};
 
-// Define request types (should match backend Pydantic models)
+
 export interface PasswordChangeRequest {
     current_password: string;
     new_password: string;
@@ -116,7 +111,7 @@ export const changePassword = async (data: PasswordChangeRequest): Promise<{ mes
     return response.data;
 };
 
-export const changeUsername = async (data: UsernameChangeRequest): Promise<User> => { // Expect User object back
+export const changeUsername = async (data: UsernameChangeRequest): Promise<User> => {
     const response = await api.put<User>('/api/auth/users/me/username', data);
     return response.data;
 };

@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 User Preference Repository Module
 Provides data access operations for user preference settings

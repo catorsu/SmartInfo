@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Chat service for managing chat sessions and processing messages
 """
@@ -21,16 +18,16 @@ from db.repositories.chat_repository import ChatRepository
 from db.repositories.message_repository import MessageRepository
 from db.repositories.api_key_repository import (
     ApiKeyRepository,
-)  # Import ApiKeyRepository
-from core.llm.client import AsyncLLMClient  # Import AsyncLLMClient
-from models import (  # Import models directly
+)
+from core.llm.client import AsyncLLMClient
+from models import (
     Chat,
     ChatCreate,
     Message,
     MessageCreate,
     ChatAnswer,
-    User,  # Import User for type hinting
-    ApiKey,  # Import ApiKey model
+    User,
+    ApiKey,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,12 +40,12 @@ class ChatService:
         self,
         chat_repo: ChatRepository,
         message_repo: MessageRepository,
-        api_key_repo: ApiKeyRepository,  # Add ApiKeyRepository dependency
+        api_key_repo: ApiKeyRepository,
     ):
         """Initialize the chat service"""
         self._chat_repo = chat_repo
         self._message_repo = message_repo
-        self._api_key_repo = api_key_repo  # Store ApiKeyRepository
+        self._api_key_repo = api_key_repo
 
     # --- Chat Session Management (User-Aware) ---
 
@@ -176,13 +173,11 @@ class ChatService:
         """
         messages = []
         chat_title = None
-        user_id = user.id  # Get user ID from the authenticated user object
+        user_id = user.id
 
         if chat_id:
             # Get the chat, ensuring it belongs to the user
-            chat = await self.get_chat_by_id(
-                chat_id=chat_id, user_id=user_id
-            )  # Use the service method
+            chat = await self.get_chat_by_id(chat_id=chat_id, user_id=user_id)
             if not chat:
                 raise ValueError(
                     f"Chat ID {chat_id} not found or does not belong to user {user_id}"
@@ -209,7 +204,7 @@ class ChatService:
         if not chat_id:
             chat_create_data = ChatCreate(
                 title=content[:50] + "..." if len(content) > 50 else content,
-                user_id=user_id,  # Pass user_id here
+                user_id=user_id,
             )
             new_chat = await self.create_chat(
                 chat_data=chat_create_data, user_id=user_id
@@ -315,7 +310,7 @@ class ChatService:
                     f"Failed to validate or instantiate LLM client for API key data: {key_data}. Error: {e}",
                     exc_info=True,
                 )
-                continue  # Try the next key
+                continue
 
         logger.warning(f"No valid API key configuration found for user {user_id}.")
         return None

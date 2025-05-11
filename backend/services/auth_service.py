@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Authentication Service Module
 Handles user registration and authentication logic.
@@ -36,27 +33,24 @@ class AuthService:
             The created user object (UserInDB) if registration is successful,
             otherwise None (e.g., if username already exists).
         """
-        # Check if user already exists
+
         existing_user = await self.user_repo.get_user_by_username(user_create.username)
         if existing_user:
-            # Consider raising a specific exception (e.g., HTTPException) here
-            # for the API layer to handle, instead of just returning None.
+
             print(
                 f"Registration failed: Username '{user_create.username}' already exists."
             )
             return None
 
-        # Hash the password
         hashed_password = get_password_hash(user_create.password)
 
-        # Add user to the database
         try:
             new_user = await self.user_repo.add_user(
                 username=user_create.username, hashed_password=hashed_password
             )
             return new_user
         except Exception as e:
-            # Log the error appropriately
+
             print(f"Error during user registration: {e}")
             return None
 
@@ -76,9 +70,9 @@ class AuthService:
         """
         user = await self.user_repo.get_user_by_username(username)
         if not user:
-            return None  # User not found
+            return None
         if not verify_password(password, user.hashed_password):
-            return None  # Incorrect password
+            return None
 
         return user
 
@@ -87,7 +81,7 @@ class AuthService:
     ) -> bool:
         user = await self.user_repo.get_user_by_id(user_id)
         if not user:
-            return False  # Should not happen if user_id comes from authenticated user
+            return False
 
         if not verify_password(current_password_str, user.hashed_password):
             logger.warning(
@@ -109,25 +103,21 @@ class AuthService:
             logger.warning(
                 f"Username change attempt failed for user {user_id}: Incorrect current password."
             )
-            return None  # Or raise specific exception
+            return None
 
-        # Check if new username is different from current
         if user_in_db.username == new_username:
             logger.info(
                 f"User {user_id} attempted to change username to the same value ('{new_username}'). No change made."
             )
-            # Return current user details as if successful, since no change was needed
+
             return User.model_validate(user_in_db)
 
-        # Attempt to update username in repository (handles uniqueness check)
         success = await self.user_repo.update_username(user_id, new_username)
         if not success:
-            # This implies username was likely taken, or DB error
+
             raise ValueError("Username already taken or update failed.")
 
         updated_user_in_db = await self.user_repo.get_user_by_id(user_id)
         if updated_user_in_db:
-            return User.model_validate(
-                updated_user_in_db
-            )  # Convert to User for response
+            return User.model_validate(updated_user_in_db)
         return None

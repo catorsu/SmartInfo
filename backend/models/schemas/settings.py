@@ -1,15 +1,9 @@
-# backend/models/settings.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Pydantic models for user preference settings.
 """
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, Any, Optional
-
-# --- User Preference Models ---
 
 
 class UserPreferenceBase(BaseModel):

@@ -1,5 +1,3 @@
-# backend/api/routers/settings.py
-# -*- coding: utf-8 -*-
 """
 API router for user-specific application settings and API key management (Version 1).
 """
@@ -7,15 +5,15 @@ API router for user-specific application settings and API key management (Versio
 import logging
 import time
 from fastapi import APIRouter, Depends, HTTPException, Body, status
-from typing import List, Dict, Any, Optional, Annotated  # Import Annotated
+from typing import List, Dict, Any, Optional, Annotated
 
-# Import dependencies from the centralized dependencies module
+
 from api.dependencies import (
     get_setting_service,
-    get_current_active_user,  # Import user dependency
+    get_current_active_user,
 )
 
-# Import schemas from the main models package
+
 from models import (
     ApiKey,
     ApiKeyCreate,
@@ -23,9 +21,9 @@ from models import (
     UserPreferenceUpdate,
     User,
     ApiKeyResponse,
-)  # Import User schema
+)
 
-# Import service type hint
+
 from services.setting_service import SettingService
 
 logger = logging.getLogger(__name__)
@@ -37,7 +35,7 @@ router = APIRouter()
 
 @router.get(
     "/api_keys",
-    response_model=List[ApiKeyResponse],  # Updated response model
+    response_model=List[ApiKeyResponse],
     summary="List user's API keys",
     description="Retrieve all API keys configured by the current user.",
 )
@@ -56,7 +54,7 @@ async def get_all_api_keys(
 
 @router.get(
     "/api_keys/{api_key_id}",
-    response_model=ApiKeyResponse,  # Updated response model
+    response_model=ApiKeyResponse,
     summary="Get API key by ID",
     description="Retrieve a specific API key by its ID, ensuring it belongs to the user.",
 )
@@ -79,7 +77,7 @@ async def get_api_key_by_id(
 
 @router.post(
     "/api_keys",
-    response_model=ApiKeyResponse,  # Updated response model
+    response_model=ApiKeyResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new API key",
     description="Create a new API key for the current user.",
@@ -90,7 +88,7 @@ async def create_api_key(
     setting_service: Annotated[SettingService, Depends(get_setting_service)],
 ):
     """Create a new API key for the current user."""
-    # Ensure the data is associated with the current user
+
     api_key_data_with_user = api_key_data.model_copy(
         update={"user_id": current_user.id}
     )
@@ -111,13 +109,13 @@ async def create_api_key(
 
 @router.put(
     "/api_keys/{api_key_id}",
-    response_model=ApiKeyResponse,  # Updated response model
+    response_model=ApiKeyResponse,
     summary="Update an API key",
     description="Update an existing API key belonging to the current user.",
 )
 async def update_api_key(
     api_key_id: int,
-    api_key_data: ApiKeyUpdate,  # Use Update schema for update payload
+    api_key_data: ApiKeyUpdate,
     current_user: Annotated[User, Depends(get_current_active_user)],
     setting_service: Annotated[SettingService, Depends(get_setting_service)],
 ):
@@ -126,8 +124,8 @@ async def update_api_key(
     try:
         updated_key = await setting_service.update_api_key(
             api_id=api_key_id,
-            user_id=current_user.id,  # Pass user_id from dependency
-            api_key_data=api_key_data,  # Pass the validated data
+            user_id=current_user.id,
+            api_key_data=api_key_data,
         )
         if not updated_key:
             # Service returns None if not found/owned
@@ -220,13 +218,13 @@ async def get_all_settings(
     description="Update persistent application settings for the current user.",
 )
 async def update_settings(
-    settings_update: UserPreferenceUpdate,  # Contains the dict of settings
+    settings_update: UserPreferenceUpdate,
     current_user: Annotated[User, Depends(get_current_active_user)],
     setting_service: Annotated[SettingService, Depends(get_setting_service)],
 ):
     """Update persistent settings for the current user."""
     try:
-        settings_dict = settings_update.settings  # Access the inner dict
+        settings_dict = settings_update.settings
         if not settings_dict:
             return await setting_service.get_all_settings(user_id=current_user.id)
 

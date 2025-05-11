@@ -1,10 +1,10 @@
 import api from './api';
-import axios from 'axios'; // Import axios for error checking
+import axios from 'axios';
 import { ApiKey, ApiKeyCreate, UserPreferenceUpdate } from '../utils/types';
 
 const BASE_PATH = '/api/settings';
 
-// System Settings API
+
 export const getSettings = async (): Promise<Record<string, any>> => {
   const response = await api.get(`${BASE_PATH}/settings`);
   return response.data;
@@ -21,7 +21,7 @@ export const resetSettings = async (): Promise<Record<string, any>> => {
   return response.data;
 };
 
-// API Keys API
+
 export const getApiKeys = async (): Promise<ApiKey[]> => {
   const response = await api.get(`${BASE_PATH}/api_keys`);
   return response.data;
@@ -56,13 +56,13 @@ export const deleteApiKey = async (apiKeyId: number): Promise<void> => {
   await api.delete(`${BASE_PATH}/api_keys/${apiKeyId}`);
 };
 
-// API Key Test Functionality
+
 export const testApiKey = async (apiKeyId: number): Promise<Record<string, any>> => {
   const response = await api.post(`${BASE_PATH}/api_keys/${apiKeyId}/test`);
   return response.data;
 };
 
-// LLM Service Test
+
 export const testLlmService = async (): Promise<Record<string, any>> => {
   const response = await api.get(`${BASE_PATH}/llm/test`);
   return response.data;

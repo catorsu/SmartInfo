@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 NewsService Module
 - Coordinates retrieval, processing, analysis, and storage of news content for specific users.
@@ -11,26 +8,26 @@ from datetime import date
 import logging
 from typing import List, Dict, Optional, Any, AsyncGenerator
 
-# Repository interfaces for database operations
+
 from db.repositories import (
     NewsRepository,
     NewsSourceRepository,
     NewsCategoryRepository,
-    ApiKeyRepository,  # Import ApiKeyRepository
+    ApiKeyRepository,
 )
 
-# Client to interact with the LLM API
-from core.llm.client import AsyncLLMClient  # Import AsyncLLMClient
+
+from core.llm.client import AsyncLLMClient
 
 from utils.prompt import SYSTEM_PROMPT_ANALYZE_CONTENT
 from models import (
     NewsSourceCreate,
     NewsCategoryCreate,
-    User,  # Import Pydantic models
-    ApiKey,  # Import ApiKey model
+    User,
+    ApiKey,
 )
 
-# Configure module-level logger
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,12 +48,12 @@ class NewsService:
         news_repo: NewsRepository,
         source_repo: NewsSourceRepository,
         category_repo: NewsCategoryRepository,
-        api_key_repo: ApiKeyRepository,  # Add ApiKeyRepository dependency
+        api_key_repo: ApiKeyRepository,
     ):
         self._news_repo = news_repo
         self._source_repo = source_repo
         self._category_repo = category_repo
-        self._api_key_repo = api_key_repo  # Store ApiKeyRepository
+        self._api_key_repo = api_key_repo
 
     # -------------------------------------------------------------------------
     # Public CRUD Methods (User-Aware)
@@ -78,15 +75,15 @@ class NewsService:
 
     async def get_news_with_filters(
         self,
-        user_id: int,  # Add user_id
+        user_id: int,
         category_id: Optional[int] = None,
         source_id: Optional[int] = None,
         has_analysis: Optional[bool] = None,
         page: int = 1,
         page_size: int = 20,
         search_term: Optional[str] = None,
-        fetch_date: Optional[date] = None,  # New parameter
-        sort_by: Optional[str] = None,  # New parameter
+        fetch_date: Optional[date] = None,
+        sort_by: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get news items for a specific user with filters."""
         # Use get_news_with_filters_as_dict which already handles user_id and returns dicts
@@ -149,7 +146,7 @@ class NewsService:
         return await self._category_repo.add(name, user_id)
 
     async def create_category(
-        self, category_data: NewsCategoryCreate, user_id: int  # Use Pydantic model
+        self, category_data: NewsCategoryCreate, user_id: int
     ) -> Optional[Dict[str, Any]]:
         """Create a new category for a user using Pydantic model data."""
         if category_data.user_id != user_id:
@@ -217,7 +214,7 @@ class NewsService:
         """Add a news source for a user. Creates the category if it doesn't exist for the user."""
         category = await self._category_repo.get_by_name(category_name, user_id)
         if category:
-            category_id = category["id"]  # Access by key name
+            category_id = category["id"]
         else:
             category_id = await self._category_repo.add(category_name, user_id)
             if not category_id:
@@ -258,7 +255,7 @@ class NewsService:
         return await self._news_repo.update_analysis(news_id, user_id, analysis_text)
 
     async def create_source(
-        self, source_data: NewsSourceCreate, user_id: int  # Use Pydantic model
+        self, source_data: NewsSourceCreate, user_id: int
     ) -> Optional[Dict[str, Any]]:
         """Create a news source for a user from Pydantic model data."""
         if source_data.user_id != user_id:
@@ -308,7 +305,7 @@ class NewsService:
         return new_source  # Already a dict
 
     async def stream_analysis_for_news_item(
-        self, news_id: int, user_id: int, force: bool = False  # Add user_id
+        self, news_id: int, user_id: int, force: bool = False
     ) -> AsyncGenerator[str, None]:
         """
         Analyzes a specific news item belonging to a user and streams the results.
@@ -358,7 +355,7 @@ class NewsService:
 
             async for chunk in llm_reponse_stream:
                 full_analysis += chunk
-                print(chunk, end="", flush=True)  # Debugging output
+                print(chunk, end="", flush=True)
                 yield chunk
 
             await llm_client.close()
@@ -411,7 +408,7 @@ class NewsService:
                     f"Failed to validate or instantiate LLM client for API key data: {key_data}. Error: {e}",
                     exc_info=True,
                 )
-                continue  # Try the next key
+                continue
 
         logger.warning(f"No valid API key configuration found for user {user_id}.")
         return None

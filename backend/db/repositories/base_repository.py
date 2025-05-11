@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Base Repository Module
 Provides a common base for database repository classes using asyncpg
@@ -25,26 +22,24 @@ class BaseRepository:
         This is primarily for testing purposes.
         :param connection: asyncpg.Connection (for overriding the default context manager)
         """
-        # Store the connection override directly
+
         self._connection_override = connection
 
-    def _get_connection_context(self):  # Removed async
+    def _get_connection_context(self):
         """
         Get the database connection context manager.
         Uses the override if provided, otherwise uses the default from db.connection.
         """
         if self._connection_override:
-            # If an override connection is provided, return a simple context manager for it
+
             @asynccontextmanager
             async def override_context_manager():
                 yield self._connection_override
 
             return override_context_manager()
         else:
-            # Otherwise, use the standard context manager from the connection module
-            return (
-                get_db_connection_context()
-            )  # Call the function to get the context manager instance
+
+            return get_db_connection_context()
 
     async def _execute(self, query: str, params: Tuple = ()) -> Optional[str]:
         """

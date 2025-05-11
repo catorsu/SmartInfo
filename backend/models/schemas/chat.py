@@ -1,15 +1,10 @@
-# backend/models/chat.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Pydantic models for chat related data (sessions and messages).
 """
+
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
-
-# --- Message Models ---
 
 
 # MessageBase does not include user_id, which is correct as messages belong to a chat
@@ -51,9 +46,6 @@ class Message(MessageBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Chat Session Models ---
-
-
 class ChatFields(BaseModel):
     """Fields expected in chat session create/update request payloads."""
 
@@ -87,9 +79,6 @@ class Chat(ChatFields):
         description="List of messages in the chat session (optional, loaded on demand)",
     )
     model_config = ConfigDict(from_attributes=True)
-
-
-# --- Response Models ---
 
 
 class MessageResponse(BaseModel):
@@ -139,9 +128,6 @@ class ChatListResponseItem(BaseModel):
         None, description="Last modification timestamp (ISO 8601 format)"
     )
     model_config = ConfigDict(from_attributes=True)
-
-
-# --- Chat Interaction Models ---
 
 
 class ChatAnswer(BaseModel):

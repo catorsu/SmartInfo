@@ -1,8 +1,3 @@
-# File: /home/cator/project/SmartInfo/backend/db/repositories/fetch_history_repository.py
-# backend/db/repositories/fetch_history_repository.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 Fetch History Repository Module
 Handles database operations for the fetch_history table.
