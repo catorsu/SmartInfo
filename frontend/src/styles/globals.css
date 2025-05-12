@@ -166,3 +166,50 @@ a:hover {
   z-index: 10;
   /* Ensure it's above other items when scaled */
 }
+
+/* Custom FAB sizes - Smaller */
+.filter-toggle-fab.ant-float-btn {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.filter-toggle-fab.ant-float-btn .ant-float-btn-body {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important; 
+}
+
+.filter-toggle-fab.ant-float-btn .ant-float-btn-body .anticon {
+  font-size: 16px !important;
+  vertical-align: middle;
+}
+
+/* For buttons within the action group */
+.action-fab-group .ant-float-btn {
+  width: 36px !important;
+  height: 36px !important;
+}
+.action-fab-group .ant-float-btn .ant-float-btn-body {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+}
+.action-fab-group .ant-float-btn .ant-float-btn-body .anticon {
+  font-size: 16px !important;
+  vertical-align: middle;
+}
+
+/* For the main trigger icon of the FloatButton.Group itself */
+.action-fab-group > .ant-float-btn.ant-float-btn-circle:first-child {
+  width: 40px !important;
+  height: 40px !important;
+}
+.action-fab-group > .ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+}
+.action-fab-group > .ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body .anticon {
+  font-size: 18px !important;
+  vertical-align: middle;
+}

@@ -24,7 +24,9 @@ import {
   message,
   Tooltip,
   DatePicker, // Keep if you plan to use it for history date selection
-  Badge
+  Badge,
+  FloatButton // Added FloatButton
+  // Removed Affix as we'll use direct sticky styling
 } from 'antd';
 import {
   SearchOutlined,
@@ -42,7 +44,9 @@ import {
   LoadingOutlined,
   HistoryOutlined,
   DeleteOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  FilterOutlined, // Added FilterOutlined
+  AppstoreOutlined // Added for potential FloatButton.Group icon
 } from '@ant-design/icons';
 import { NewsItem, NewsCategory, NewsSource, NewsFilterParams, FetchTaskItem, FetchHistoryItem } from '@/utils/types';
 import * as newsService from '@/services/newsService';
@@ -124,6 +128,7 @@ const NewsPage: React.FC = () => {
   const [historicalData, setHistoricalData] = useState<FetchHistoryItem[] | null>(null);
   const [viewingDate, setViewingDate] = useState<'today' | 'history'>('today');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState<dayjs.Dayjs | null>(null);
+  const [isFilterRowVisible, setIsFilterRowVisible] = useState<boolean>(false); // State for filter visibility
 
 
   const loadNews = useCallback(async (params: NewsFilterParams) => {
@@ -561,59 +566,81 @@ const NewsPage: React.FC = () => {
 
   return (
     <div>
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }} align="middle">
-        <Col xs={24} sm={12} md={5} lg={5}>
-          <Select
-            placeholder="Select category"
-            style={{ width: '100%' }}
-            allowClear
-            onChange={(value) => handleCategoryChange(value)}
-            loading={loading && categories.length === 0}
-            value={filters.category_id}
+      {/* Filter Toggle FAB */}
+      <FloatButton
+        icon={<FilterOutlined />}
+        tooltip="Toggle Filters"
+        onClick={() => setIsFilterRowVisible(prev => !prev)}
+        className="filter-toggle-fab" // Added className
+        style={{ position: 'fixed', top: 24, right: 24, zIndex: 1001 }}
+      />
+
+      {/* Conditionally rendered Filter Row with controlled width and sticky positioning */}
+      {isFilterRowVisible && (
+        <div style={{ position: 'sticky', top: 0, zIndex: 1000, width: '68%', marginLeft: 'auto', marginRight: 'auto' }}>
+          <Row 
+            justify="center" 
+            style={{
+              backgroundColor: 'var(--primary-bg, #fff)', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              // No padding here, will be on the inner Col or Row
+            }}
           >
-            {categories.map(category => (
-              <Option key={category.id} value={category.id}>{category.name}</Option>
-            ))}
-          </Select>
-        </Col>
-        <Col xs={24} sm={12} md={5} lg={5}>
-          <Select
-            placeholder="Select source"
-            style={{ width: '100%' }}
-            allowClear
-            onChange={(value) => handleFilterChange('source_id', value)}
-            loading={loading && sources.length === 0 && !!filters.category_id}
-            value={filters.source_id}
-            disabled={!filters.category_id && sources.every(s => s.category_id !== undefined)}
-          >
-            {sources.map(source => (
-              <Option key={source.id} value={source.id}>{source.name}</Option>
-            ))}
-          </Select>
-        </Col>
-        <Col xs={24} sm={24} md={8} lg={8}>
-          <Input
-            placeholder="Search news"
-            prefix={<SearchOutlined />}
-            onChange={(e) => debouncedSearch(e.target.value)}
-            allowClear
-          />
-        </Col>
-        <Col xs={12} sm={12} md={3} lg={3}>
-          <Tooltip title="Get News">
-            <Button type="primary" icon={<DownloadOutlined />} onClick={showFetchModal} style={{ width: '100%' }} />
-          </Tooltip>
-        </Col>
-        <Col xs={12} sm={12} md={3} lg={3}>
-          <Tooltip title={`Progress ${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length > 0 ? `(${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length})` : ''}`}>
-            <Button icon={<BarsOutlined />} onClick={() => {
-                setViewingDate('today');
-                fetchTodaysHistory();
-                setIsTaskDrawerVisible(true);
-              }} style={{ width: '100%' }} />
-          </Tooltip>
-        </Col>
-      </Row>
+            <Col xs={24} sm={24} md={24} lg={23} xl={22}>
+              <Row 
+                gutter={[16, 4]} // Keep reduced gutter for controls
+                style={{
+                  padding: '8px 0px', // Vertical padding, horizontal comes from Col
+                }}
+                align="middle"
+              >
+                <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                  <Select
+                    placeholder="Select category"
+                    style={{ width: '100%' }}
+                    allowClear
+                    size="small"
+                    onChange={(value) => handleCategoryChange(value)}
+                    loading={loading && categories.length === 0}
+                    value={filters.category_id}
+                  >
+                    {categories.map(category => (
+                      <Option key={category.id} value={category.id}>{category.name}</Option>
+                    ))}
+                  </Select>
+                </Col>
+                <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                  <Select
+                    placeholder="Select source"
+                    style={{ width: '100%' }}
+                    allowClear
+                    size="small"
+                    onChange={(value) => handleFilterChange('source_id', value)}
+                    loading={loading && sources.length === 0 && !!filters.category_id}
+                    value={filters.source_id}
+                    disabled={!filters.category_id && sources.every(s => s.category_id !== undefined)}
+                  >
+                    {sources.map(source => (
+                      <Option key={source.id} value={source.id}>{source.name}</Option>
+                    ))}
+                  </Select>
+                </Col>
+                <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                  <Input
+                    placeholder="Search news"
+                    prefix={<SearchOutlined />}
+                    size="small"
+                    onChange={(e) => debouncedSearch(e.target.value)}
+                    allowClear
+                  />
+                </Col>
+                {/* Get News and View Progress buttons were moved to FABs */}
+              </Row>
+            </Col>
+          </Row>
+        </div>
+      )}
+
 
       {error && (
         <Alert
@@ -707,7 +734,7 @@ const NewsPage: React.FC = () => {
                           <Typography.Title 
                             level={4} 
                             style={{ marginBottom: '8px', marginTop: 0, fontSize: '18px', fontWeight: 600 }} 
-                            ellipsis={{ rows: 2, expandable: false, tooltip: item.title }}
+                            ellipsis={{ rows: 2, expandable: false }}
                           >
                             {item.title}
                           </Typography.Title>
@@ -732,7 +759,7 @@ const NewsPage: React.FC = () => {
                               </Space>
                             )}
                             {item.url && (
-                              <Tooltip title="View Original Article">
+                              
                                 <Button
                                   type="text"
                                   href={item.url}
@@ -741,21 +768,21 @@ const NewsPage: React.FC = () => {
                                   icon={<LinkOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
                                   style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
                                 />
-                              </Tooltip>
+                              
                             )}
-                            <Tooltip title="Analyze News">
+                            
                               <Button
                                 type="text"
                                 icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
                                 onClick={() => openAnalysisModal(item.id)}
                                 style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
                               />
-                            </Tooltip>
+                            
                           </Space>
 
                           {item.summary && (
                             <Typography.Paragraph
-                              ellipsis={{ rows: 3, expandable: false, tooltip: item.summary }} // Consistent 3 rows for summary
+                              ellipsis={{ rows: 3, expandable: false }} // Consistent 3 rows for summary
                               style={{ marginBottom: '0', color: 'var(--text-primary)', lineHeight: 1.6, flexGrow: 1 }}
                             >
                               {item.summary}
@@ -1026,6 +1053,30 @@ const NewsPage: React.FC = () => {
           newsItemId={selectedNewsItemId}
         />
       )}
+
+      {/* Action FABs */}
+      <FloatButton.Group
+        trigger="hover"
+        style={{ right: 24, bottom: 24 }}
+        icon={<AppstoreOutlined />}
+        className="action-fab-group" // Added className
+      >
+        <FloatButton
+          icon={<DownloadOutlined />}
+          tooltip="Get News"
+          onClick={showFetchModal}
+          type="primary"
+        />
+        <FloatButton
+          icon={<BarsOutlined />}
+          tooltip={`Progress ${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length > 0 ? `(${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length})` : ''}`}
+          onClick={() => {
+            setViewingDate('today');
+            fetchTodaysHistory();
+            setIsTaskDrawerVisible(true);
+          }}
+        />
+      </FloatButton.Group>
     </div>
   );
 };

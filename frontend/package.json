@@ -23,20 +23,20 @@
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
     "@types/lodash": "^4.17.16",
-    "antd": "^5.24.8",
+    "antd": "latest",
     "axios": "^1.6.2",
     "lodash": "^4.17.21",
     "next": "^15.3.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.1.4",
-    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
     "@types/jest": "^29.5.10",
     "@types/node": "^20.17.0",
-    "@types/react": "^18.3.20",
-    "@types/react-dom": "^18.3.6",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "ts-node": "^10.9.1",

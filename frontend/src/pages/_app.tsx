@@ -112,13 +112,19 @@ export default function App({ Component, pageProps, router }: AppProps & { route
                         extraColor: 'var(--text-secondary)',
                     },
                     Button: {
-                        defaultBg: 'var(--primary-bg)',
-                        defaultColor: 'var(--text-primary)',
+                        defaultBg: 'var(--primary-bg)', // Explicitly set default button background to a light variable
+                        defaultColor: 'var(--text-secondary)',
                         defaultBorderColor: 'var(--border-color)',
                         defaultGhostColor: 'var(--text-primary)',
                         defaultGhostBorderColor: 'var(--border-color)',
                         controlItemBgActive: 'var(--secondary-bg)',
                         colorPrimaryActive: 'var(--secondary-bg)',
+                        colorPrimary: 'var(--secondary-bg)',
+                        colorPrimaryHover: 'var(--tertiary-bg)', // Set primary button background on hover to a light color
+                    },
+                    Table: { // Add explicit Table component override
+                        headerBg: 'var(--secondary-bg)', // Set table header background to a light color variable
+                        headerColor: 'var(--text-primary)', // Ensure header text is readable
                     },
                     Input: {
                         colorBgContainer: 'var(--input-bg)',

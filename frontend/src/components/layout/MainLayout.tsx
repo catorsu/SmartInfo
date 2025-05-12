@@ -434,7 +434,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       </Sider>
 
       <Layout style={{ marginLeft: collapsed ? 80 : 260, transition: 'margin-left 0.2s' }}>
-        <Content style={{ padding: 24, margin: 0, minHeight: 'calc(100vh - 48px)' }}>
+        <Content style={{ padding: 24, margin: '0 auto', minHeight: 'calc(100vh - 48px)', maxWidth: '1200px', width: '100%' }}>
           {children}
         </Content>
       </Layout>

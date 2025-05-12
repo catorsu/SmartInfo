@@ -151,7 +151,7 @@ SmartInfo/
 
 5.  **Run the Backend API Server:**
     ```bash
-    poetry run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+    poetry run uvicorn main:app --reload --host 0.0.0.0 --port 8000
     ```
     * `--reload`: Enables auto-reloading for development. Remove for production.
     * The server will be accessible at `http://localhost:8000`.
@@ -159,7 +159,7 @@ SmartInfo/
 6.  **Run the Celery Worker:**
     Open a *new terminal* in the `backend` directory:
     ```bash
-    poetry run celery -A backend.background.celery_app worker --loglevel=info
+    poetry run celery -A background.celery_app worker --loglevel=info
     ```
     *(This starts the background worker to process news fetching and analysis tasks.)*
 
@@ -193,34 +193,6 @@ SmartInfo/
     yarn dev
     ```
     * The frontend will be accessible at `http://localhost:3000`.
-
-### Testing
-
-**Backend:**
-
-* Run unit/integration tests:
-    ```bash
-    cd backend
-    poetry run pytest
-    ```
-
-**Frontend:**
-
-* Run unit tests:
-    ```bash
-    cd frontend
-    npm test
-    # or
-    yarn test
-    ```
-* Test backend connectivity from the frontend environment:
-    ```bash
-    cd frontend
-    npm run test:backend
-    # or
-    yarn test:backend
-    ```
-    *(Requires the backend server to be running)*
 
 ## 📚 API Documentation
 
