@@ -355,7 +355,6 @@ class NewsService:
 
             async for chunk in llm_reponse_stream:
                 full_analysis += chunk
-                print(chunk, end="", flush=True)
                 yield chunk
 
             await llm_client.close()

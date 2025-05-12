@@ -6,6 +6,7 @@
   /* Light Theme Palette */
   --primary-bg: #F8F9FA;
   --secondary-bg: #f0f4f9;
+  /* 假设这是你的二级背景色 */
   --tertiary-bg: #e4e8ec;
   /* For hover states, subtle borders, some input backgrounds */
 
@@ -45,6 +46,10 @@
 
   --border-radius-base: 6px;
   --border-radius-lg: 8px;
+
+  /* 新增的悬停渐变起始颜色 */
+  --hover-gradient-start-blueish: #e0e8f5;
+  /* 比 --secondary-bg 略深且偏蓝 */
 }
 
 * {
@@ -134,4 +139,30 @@ a:hover {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
   /* Softer shadow for light theme */
   /* other base card styles */
+}
+
+/* News Item Card Base and Hover Effect */
+.news-item-card-hoverable {
+  background-color: var(--secondary-bg);
+  /* Default background */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  /* A very subtle default shadow */
+  position: relative;
+  /* For z-index on hover */
+  transition: transform 0.2s ease-in-out,
+    background-image 0.3s ease-in-out,
+    background-color 0.3s ease-in-out,
+    /* For smooth transition from solid to gradient */
+    box-shadow 0.2s ease-in-out;
+  background-image: none;
+  /* Ensure no background-image is set by default */
+}
+
+.news-item-card-hoverable:hover {
+  transform: scale(1.02);
+  background-image: linear-gradient(to bottom, var(--hover-gradient-start-blueish), var(--secondary-bg));
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+  /* Optional: Slightly more pronounced shadow */
+  z-index: 10;
+  /* Ensure it's above other items when scaled */
 }

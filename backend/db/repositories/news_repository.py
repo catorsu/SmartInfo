@@ -34,8 +34,8 @@ class NewsRepository(BaseRepository):
             INSERT INTO {News.TABLE_NAME} (
                 {News.TITLE}, {News.URL}, {News.SOURCE_NAME}, {News.CATEGORY_NAME},
                 {News.SOURCE_ID}, {News.CATEGORY_ID}, {News.SUMMARY},
-                {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}, {News.TOP_IMAGE}
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT ({News.URL}, {News.USER_ID}) DO NOTHING
             RETURNING {News.ID}
         """
@@ -51,6 +51,7 @@ class NewsRepository(BaseRepository):
             item.get("date"),
             item.get("content"),
             user_id,
+            item.get("top_image"),
         )
 
         try:
@@ -123,6 +124,7 @@ class NewsRepository(BaseRepository):
                 item.get("date"),
                 item.get("content", ""),
                 user_id,
+                item.get("top_image"),
             )
             params_list.append(params)
             processed_urls_in_batch.add(url)
@@ -138,8 +140,8 @@ class NewsRepository(BaseRepository):
             INSERT INTO {News.TABLE_NAME} (
                 {News.TITLE}, {News.URL}, {News.SOURCE_NAME}, {News.CATEGORY_NAME},
                 {News.SOURCE_ID}, {News.CATEGORY_ID}, {News.SUMMARY},
-                {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}, {News.TOP_IMAGE}
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT ({News.URL}, {News.USER_ID}) DO NOTHING
         """
 
@@ -172,7 +174,7 @@ class NewsRepository(BaseRepository):
         query_str = f"""
             SELECT {News.ID}, {News.TITLE}, {News.URL}, {News.SOURCE_NAME},
                    {News.CATEGORY_NAME}, {News.SOURCE_ID}, {News.CATEGORY_ID},
-                   {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}
+                   {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}, {News.TOP_IMAGE}
             FROM {News.TABLE_NAME} WHERE {News.ID} = $1 AND {News.USER_ID} = $2
         """
         try:
@@ -201,7 +203,7 @@ class NewsRepository(BaseRepository):
         query_str = f"""
             SELECT {News.ID}, {News.TITLE}, {News.URL}, {News.SOURCE_NAME},
                    {News.CATEGORY_NAME}, {News.SOURCE_ID}, {News.CATEGORY_ID},
-                   {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.USER_ID}
+                   {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.USER_ID}, {News.TOP_IMAGE}
             FROM {News.TABLE_NAME} WHERE {News.USER_ID} = $1
             ORDER BY {News.ID} DESC LIMIT $2 OFFSET $3
         """
@@ -231,7 +233,7 @@ class NewsRepository(BaseRepository):
             SELECT
                 {News.ID}, {News.TITLE}, {News.URL}, {News.SOURCE_NAME},
                 {News.CATEGORY_NAME}, {News.SOURCE_ID}, {News.CATEGORY_ID},
-                {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}, {News.CREATED_AT} -- Include CREATED_AT
+                {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, {News.USER_ID}, {News.CREATED_AT}, {News.TOP_IMAGE} -- Include TOP_IMAGE
             FROM {News.TABLE_NAME}
             WHERE {News.USER_ID} = $1
         """

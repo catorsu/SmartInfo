@@ -2,9 +2,9 @@
 Pydantic models for news related data (sources, categories, items, requests).
 """
 
-from datetime import date, datetime
-from pydantic import BaseModel, Field, AnyHttpUrl, ConfigDict
-from typing import List, Optional, Dict, Any
+from datetime import date, datetime  # Ensure datetime is imported for NewsResponse
+from pydantic import BaseModel, Field, AnyHttpUrl, ConfigDict, field_validator
+from typing import List, Optional, Dict, Any  # Ensure Any is imported for validator
 
 
 class NewsCategoryFields(BaseModel):
@@ -141,6 +141,9 @@ class NewsItemFields(BaseModel):
     # Include source_name and category_name for easier handling in create/update
     source_name: Optional[str] = Field(None, description="Name of the news source")
     category_name: Optional[str] = Field(None, description="Name of the news category")
+    top_image: Optional[str] = Field(
+        None, description="URL of the top image for the news item"
+    )
 
 
 class NewsItemCreate(NewsItemFields):
@@ -189,6 +192,9 @@ class NewsItem(NewsItemFields):
     model_config = ConfigDict(from_attributes=True)
 
 
+DEFAULT_NEWS_IMAGE_URL = "https://via.placeholder.com/350x200.png?text=SmartInfo+News"
+
+
 class NewsResponse(BaseModel):
     """Schema for representing a news item in API responses (excludes user_id and content)."""
 
@@ -216,6 +222,25 @@ class NewsResponse(BaseModel):
     created_at: Optional[datetime] = Field(
         None, description="Timestamp when the news item was created"
     )  # New field
+    top_image: AnyHttpUrl = Field(
+        description="URL of the top image for the news item"
+    )  # Type as AnyHttpUrl, default provided by validator
+
+    @field_validator("top_image", mode="before")
+    @classmethod
+    def validate_top_image_url(cls, v: Any) -> str:
+        """
+        Validates the top_image field. If it's not a valid-looking HTTP/S URL string,
+        it defaults to DEFAULT_NEWS_IMAGE_URL.
+        The returned string will then be parsed by Pydantic into AnyHttpUrl.
+        """
+        if isinstance(v, str) and v.strip():
+            # Basic check if it looks like an HTTP/HTTPS URL
+            if v.startswith("http://") or v.startswith("https://"):
+                return v
+        # If v is None, not a string, an empty string, or doesn't start with http/https
+        return DEFAULT_NEWS_IMAGE_URL
+
     model_config = ConfigDict(from_attributes=True)
 
 

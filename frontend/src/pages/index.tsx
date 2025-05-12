@@ -651,68 +651,138 @@ const NewsPage: React.FC = () => {
         <Empty description="No news found. Try adjusting filters or fetching new articles." />
       ) : (
         <>
-          <List
-            grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 3, xl: 3, xxl: 4 }}
-            dataSource={news}
-            loading={loading && news.length > 0}
-            renderItem={(item) => (
-              <List.Item>
-                <Card hoverable>
-                  <Card.Meta
-                    title={
-                      <Tooltip title={item.title} placement="topLeft">
-                        <Text strong style={{ fontSize: '16px', display: 'block', lineHeight: '1.4', maxHeight: '2.8em', overflow: 'hidden' }}>
-                          {item.title}
-                        </Text>
-                      </Tooltip>
-                    }
-                    description={
-                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                        <Space size={12} wrap>
-                          <Space size={4}><CalendarOutlined style={{ color: 'var(--text-secondary)' }} /><Text type="secondary" style={{ fontSize: 12 }}>{formatDate(item.date)}</Text></Space>
-                          <Space size={4}><GlobalOutlined style={{ color: 'var(--text-secondary)' }} /><Text type="secondary" style={{ fontSize: 12 }}>{item.source_name}</Text></Space>
-                          <Space size={4}><TagOutlined style={{ color: 'var(--text-secondary)' }} /><Text type="secondary" style={{ fontSize: 12 }}>{item.category_name}</Text></Space>
-                          {item.url && (
-                            <Tooltip title="View Original">
-                              <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-color)', display: 'inline-flex', alignItems: 'center' }}>
-                                <LinkOutlined />
-                              </a>
-                            </Tooltip>
-                          )}
-                        </Space>
-                        {item.summary && (
-                          <Tooltip title={item.summary} placement="bottomLeft">
-                            <Paragraph ellipsis={{ rows: 3 }} style={{ marginBottom: 0, color: 'var(--text-secondary)', minHeight: '60px' }}>
-                              {item.summary}
-                            </Paragraph>
-                          </Tooltip>
+          <Row justify="center">
+            <Col xs={24} sm={24} md={24} lg={23} xl={22}>
+              <List
+                dataSource={news}
+                loading={loading && news.length > 0}
+                renderItem={(item) => (
+                  <List.Item key={item.id} style={{paddingTop: 0, paddingBottom: 0, borderBottom: '1px solid var(--border-color)'}}>
+                    <Card 
+                      className="news-item-card-hoverable" 
+                      style={{ 
+                        // backgroundColor is now handled by CSS class .news-item-card-hoverable
+                        marginBottom: '0', 
+                        width: '100%',
+                        border: 'none', // Remove individual card border if List.Item provides separation
+                        borderRadius: 0 // Remove individual card radius if it's a continuous list
+                      }} 
+                      bodyStyle={{ padding: '20px' }}
+                    >
+                      <Row gutter={[16, 16]} align="top">
+                        {/* Group 2: Image (Now on Left) */}
+                        {item.top_image && (
+                          <Col
+                            xs={24} // Image full width on XS (stacks below text)
+                            sm={8}   // Image takes 8 out of 24 parts on small screens
+                            md={7}   // Image takes 7 out of 24 parts on medium screens
+                            lg={6}   // Image takes 6 out of 24 parts on large screens
+                            xl={5}   // Image takes 5 out of 24 parts on extra-large screens
+                          >
+                            <img
+                              src={item.top_image}
+                              alt={item.title}
+                              style={{
+                                width: '100%',
+                                height: 'auto',
+                                aspectRatio: '16/10', // Common aspect ratio for preview images
+                                objectFit: 'cover',
+                                borderRadius: 'var(--border-radius-base)',
+                                border: '1px solid var(--border-color-secondary)'
+                              }}
+                              onError={(e) => (e.currentTarget.style.display = 'none')}
+                            />
+                          </Col>
                         )}
-                        <div style={{ textAlign: 'right', paddingTop: 8 }}>
-                          <Tooltip title="Analyze News">
-                            <Button type="text" icon={<ExperimentOutlined style={{color: 'var(--accent-color)'}}/>} onClick={() => openAnalysisModal(item.id)} />
-                          </Tooltip>
-                        </div>
-                      </Space>
-                    }
-                  />
-                </Card>
-              </List.Item>
-            )}
-          />
-          <div style={{ textAlign: 'center', marginTop: 24, display: 'flex', justifyContent: 'center' }}>
-            <Pagination
-              current={filters.page}
-              pageSize={filters.page_size}
-              total={total}
-              onChange={(page) => handleFilterChange('page', page)}
-              showSizeChanger
-              onShowSizeChange={(_, size) => {
-                handleFilterChange('page_size', size);
-                handleFilterChange('page', 1);
-              }}
-              showTotal={(totalItems, range) => `${range[0]}-${range[1]} of ${totalItems} items`}
-            />
-          </div>
+
+                        {/* Group 1: Text Content (Now on Right) */}
+                        <Col
+                          xs={24}
+                          sm={item.top_image ? 16 : 24}
+                          md={item.top_image ? 17 : 24}
+                          lg={item.top_image ? 18 : 24}
+                          xl={item.top_image ? 19 : 24}
+                          style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}
+                        >
+                          <Typography.Title 
+                            level={4} 
+                            style={{ marginBottom: '8px', marginTop: 0, fontSize: '18px', fontWeight: 600 }} 
+                            ellipsis={{ rows: 2, expandable: false, tooltip: item.title }}
+                          >
+                            {item.title}
+                          </Typography.Title>
+
+                          <Space size="middle" wrap style={{ marginBottom: '12px', fontSize: '13px', alignItems: 'center' }}>
+                            {item.source_name && (
+                              <Space size={4} align="center">
+                                <GlobalOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
+                                <Text type="secondary">{item.source_name}</Text>
+                              </Space>
+                            )}
+                            {item.category_name && (
+                              <Space size={4} align="center">
+                                <TagOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
+                                <Text type="secondary">{item.category_name}</Text>
+                              </Space>
+                            )}
+                            {item.date && (
+                              <Space size={4} align="center">
+                                <CalendarOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
+                                <Text type="secondary">{formatDate(item.date)}</Text>
+                              </Space>
+                            )}
+                            {item.url && (
+                              <Tooltip title="View Original Article">
+                                <Button
+                                  type="text"
+                                  href={item.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  icon={<LinkOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
+                                  style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
+                                />
+                              </Tooltip>
+                            )}
+                            <Tooltip title="Analyze News">
+                              <Button
+                                type="text"
+                                icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
+                                onClick={() => openAnalysisModal(item.id)}
+                                style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
+                              />
+                            </Tooltip>
+                          </Space>
+
+                          {item.summary && (
+                            <Typography.Paragraph
+                              ellipsis={{ rows: 3, expandable: false, tooltip: item.summary }} // Consistent 3 rows for summary
+                              style={{ marginBottom: '0', color: 'var(--text-primary)', lineHeight: 1.6, flexGrow: 1 }}
+                            >
+                              {item.summary}
+                            </Typography.Paragraph>
+                          )}
+                        </Col>
+                      </Row>
+                    </Card>
+                  </List.Item>
+                )}
+              />
+              <div style={{ textAlign: 'center', marginTop: 24, display: 'flex', justifyContent: 'center' }}>
+                <Pagination
+                  current={filters.page}
+                  pageSize={filters.page_size}
+                  total={total}
+                  onChange={(page) => handleFilterChange('page', page)}
+                  showSizeChanger
+                  onShowSizeChange={(_, size) => {
+                    handleFilterChange('page_size', size);
+                    handleFilterChange('page', 1);
+                  }}
+                  showTotal={(totalItems, range) => `${range[0]}-${range[1]} of ${totalItems} items`}
+                />
+              </div>
+            </Col>
+          </Row>
         </>
       )}
 
@@ -802,10 +872,6 @@ const NewsPage: React.FC = () => {
                     setViewingDate('history');
                     setSelectedHistoryDate(null);
                     setHistoricalData(null);
-                    // Optionally fetch for a default date like yesterday:
-                    // const yesterday = dayjs().subtract(1, 'day');
-                    // setSelectedHistoryDate(yesterday);
-                    // fetchHistoricalData(yesterday.format('YYYY-MM-DD'));
                   }}
                 />
               </Tooltip>
@@ -870,13 +936,10 @@ const NewsPage: React.FC = () => {
                 let determinedFetchDate: string;
 
                 if ('progress' in item && item.status !== 'Complete' && item.status !== 'Error' && item.status !== 'Skipped') {
-                    // For live/pending tasks, or tasks that just completed in this session
                     determinedFetchDate = dayjs().format('YYYY-MM-DD');
-                } else if ('record_date' in item && item.record_date) { // For historical items
+                } else if ('record_date' in item && item.record_date) { 
                     determinedFetchDate = dayjs(item.record_date).format('YYYY-MM-DD');
                 } else {
-                    // Fallback for tasks that just completed and might not have record_date yet in displayedTasks
-                    // but are not "live" anymore. This assumes completion implies "today" for the click.
                     determinedFetchDate = dayjs().format('YYYY-MM-DD');
                 }
 

@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 from core.llm.pool import LLMClientPool
 from utils.html_utils import (
     clean_and_format_html,
-    extract_metadata_from_article_html,
+    extract_metadata_combined_newspaper4k_trafilatura,
 )
 from utils.markdown_utils import (
     strip_extra_links_from_markdown,
@@ -428,7 +428,7 @@ async def _extract_and_crawl_links(
                     continue
 
                 logger.debug(f"Extracting metadata from HTML: {sub_url}")
-                structure_data = extract_metadata_from_article_html(
+                structure_data = extract_metadata_combined_newspaper4k_trafilatura(
                     html_content=crawl_result["content"],
                     base_url=sub_url,
                 )
@@ -625,6 +625,9 @@ async def summarize_content(
             result_item["content"] = original_content_metadata_dict.get(
                 url_key, {}
             ).get("content", "")
+            result_item["top_image"] = original_content_metadata_dict.get(
+                url_key, {}
+            ).get("top_image", "")
 
             title = result_item.get("title", "Untitled")
             summary_length = len(result_item.get("summary", ""))

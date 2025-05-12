@@ -3,7 +3,6 @@ HTML Utils for cleaning and formatting HTML content.
 """
 
 import logging
-import re
 from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 from markdownify import markdownify
@@ -11,65 +10,65 @@ from markdownify import markdownify
 logger = logging.getLogger(__name__)
 
 DEFAULT_EXCLUDE_TAGS = [
-    # --- 脚本、样式与元信息 (通常不包含有价值文本内容) ---
-    "script",  # JavaScript 代码
-    "style",  # CSS 样式
-    "link",  # 外部资源链接（CSS、字体等）
-    "meta",  # 元数据（关键词、描述等）
-    "base",  # 相对链接的基础 URL
-    "noscript",  # 无脚本时的降级内容（通常为警告或通知）
-    "template",  # DOM模板内容（非实际页面内容）
-    # --- 页面结构元素 (通常为导航或辅助信息) ---
-    "header",  # 页眉（网站或章节顶部）
-    "footer",  # 页脚（网站或章节底部）
-    "nav",  # 导航菜单
-    "aside",  # 侧边栏或次要内容区域
-    # --- 表单与交互元素 (用户输入，非内容) ---
-    "form",  # 表单容器
-    "input",  # 输入字段
-    "textarea",  # 多行文本输入框
-    "select",  # 下拉列表
-    "button",  # 按钮
-    "label",  # 表单控件标签
-    "datalist",  # 输入建议列表
-    "meter",  # 进度指示器（度量）
-    "progress",  # 进度条
-    "dialog",  # 弹出对话框
-    # --- 媒体、嵌入及非文本内容 ---
-    "audio",  # 音频
-    "video",  # 视频
-    "iframe",  # 内嵌框架（外部页面）
-    "embed",  # 嵌入插件（例如Flash）
-    "object",  # 嵌入内容对象（如PDF、Flash）
-    "canvas",  # 画布（图形内容）
-    "map",  # 图像地图定义
-    "area",  # 图像地图区域
-    "source",  # 媒体来源（音频、视频、图片源）
-    "track",  # 媒体字幕轨道（字幕、描述）
-    # --- 特殊处理标签 (视情况决定是否排除) ---
-    "img",  # 图像通常包含内容，需单独处理
-    "picture",  # 响应式图片容器，需单独处理
-    "svg",  # 图标或矢量图，可单独处理
-    "figure",  # 图文组合，有内容意义
-    "figcaption",  # 图片/图表的标题说明，有内容意义
+    # --- Scripts, styles, and metadata ---
+    "script",
+    "style",
+    "link",
+    "meta",
+    "base",
+    "noscript",
+    "template",
+    # --- Structural elements ---
+    "header",
+    "footer",
+    "nav",
+    "aside",
+    # --- Forms and interactive elements ---
+    "form",
+    "input",
+    "textarea",
+    "select",
+    "button",
+    "label",
+    "datalist",
+    "meter",
+    "progress",
+    "dialog",
+    # --- Media, embeds, and non-text content ---
+    "audio",
+    "video",
+    "iframe",
+    "embed",
+    "object",
+    "canvas",
+    "map",
+    "area",
+    "source",
+    "track",
+    # --- Special handling tags ---
+    "img",
+    "picture",
+    "svg",
+    "figure",
+    "figcaption",
 ]
 
 
 DEFAULT_EXCLUDE_SELECTORS = [
-    # --- 广告与推广内容 ---
+    # --- Ads and promotional content ---
     ".ad",
     ".ads",
     ".advert",
     ".advertisement",
     ".sponsored",
     ".promo",
-    # --- 导航与菜单 ---
+    # --- Navigation and menus ---
     ".menu",
     ".nav",
     ".navigation",
     ".navbar",
     ".breadcrumbs",
-    # --- 页眉页脚区域（class 或 id 定义） ---
+    # --- Header and footer areas ---
     ".header",
     ".footer",
     ".site-header",
@@ -78,26 +77,26 @@ DEFAULT_EXCLUDE_SELECTORS = [
     "#footer",
     "#site-header",
     "#site-footer",
-    # --- 侧边栏（通常非核心内容）---
+    # --- Sidebars ---
     ".sidebar",
     ".widget",
     ".secondary",
     "#sidebar",
     "#secondary",
-    # --- 社交媒体与分享功能 ---
+    # --- Social media and sharing features ---
     ".share",
     ".social",
     ".share-bar",
     ".social-links",
     ".follow",
     ".unfollow",
-    # --- 用户评论与互动区域 ---
+    # --- User comments and interaction areas ---
     ".comments",
     ".comment-respond",
     ".reply",
     "#comments",
     "#respond",
-    # --- 元数据与辅助信息 ---
+    # --- Metadata and auxiliary information ---
     ".meta",
     ".post-meta",
     ".entry-meta",
@@ -110,7 +109,7 @@ DEFAULT_EXCLUDE_SELECTORS = [
     ".privacy",
     ".disclaimer",
     ".copyright",
-    # --- 推荐与相关内容区域 ---
+    # --- Recommended and related content areas ---
     ".related",
     ".related-articles",
     ".related-posts",
@@ -119,7 +118,7 @@ DEFAULT_EXCLUDE_SELECTORS = [
     ".top-stories",
     ".trending",
     ".popular-posts",
-    # --- 表单及用户操作类元素 ---
+    # --- Form and user action elements ---
     ".button",
     ".btn",
     ".submit",
@@ -131,26 +130,26 @@ DEFAULT_EXCLUDE_SELECTORS = [
     ".contribute",
     ".report",
     ".write-article",
-    # --- 弹窗、浮层及通知 ---
+    # --- Popups, overlays, and notifications ---
     ".popup",
     ".modal",
     ".overlay",
     ".cookie-notice",
     ".cookie-banner",
     ".gdpr-consent",
-    # --- 隐藏及辅助性元素 ---
+    # --- Hidden and auxiliary elements ---
     ".hidden",
     "[hidden]",
     ".screen-reader-text",
-    # --- 杂项、分页、图库（视情况保留或排除） ---
+    # --- Miscellaneous, pagination, galleries ---
     ".pagination",
     ".gallery",
     ".author-box",
     ".print-link",
     ".edit-link",
-    # --- 其他通用的非内容提示 ---
+    # --- Other general non-content prompts ---
     ".editor-choice",
-    ".post-article",  # 根据具体网站决定
+    ".post-article",
     ".read-more",
     ".see-more",
     ".view-details",
@@ -167,16 +166,16 @@ def clean_html(
     exclude_selectors: Optional[List[str]] = DEFAULT_EXCLUDE_SELECTORS,
 ) -> str:
     """
-    清理HTML内容，移除不需要的元素，并返回清理后的HTML字符串。
+    Clean HTML content, remove unwanted elements, and return the cleaned HTML string.
 
     Args:
-        html_content: 原始HTML内容
-        base_url: 网页的基础URL（用于日志记录）
-        exclude_tags: 要排除的HTML标签列表
-        exclude_selectors: 要排除的CSS选择器列表
+        html_content: Original HTML content
+        base_url: Base URL of the webpage (for logging)
+        exclude_tags: List of HTML tags to exclude
+        exclude_selectors: List of CSS selectors to exclude
 
     Returns:
-        已清理的HTML字符串
+        Cleaned HTML string
     """
     if not html_content:
         return ""
@@ -188,11 +187,11 @@ def clean_html(
             soup = BeautifulSoup(html_content, "html.parser")
         except Exception as parse_err:
             logger.error(f"Failed to parse HTML for {base_url}: {parse_err}")
-            return ""  # 完全解析失败时返回空字符串
+            return ""  # Return empty string if parsing fails completely
 
     logger.debug(f"Cleaning HTML for {base_url}.")
 
-    # --- 初始清理 ---
+    # --- Initial cleaning ---
     elements_to_remove = []
     if exclude_tags:
         for tag_name in exclude_tags:
@@ -230,16 +229,16 @@ def format_html(
     markdownify_options: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
-    将已清理的HTML字符串格式化为指定格式的文本。
+    Format the cleaned HTML string into the specified text format.
 
     Args:
-        cleaned_html: clean_html返回的HTML字符串
-        base_url: 网页的基础URL（用于日志记录）
-        output_format: 输出格式，'markdown' 或 'plain_text'
-        markdownify_options: 传递给markdownify的额外选项
+        cleaned_html: HTML string returned by clean_html
+        base_url: Base URL of the webpage (for logging)
+        output_format: Output format, 'markdown' or 'plain_text'
+        markdownify_options: Additional options passed to markdownify
 
     Returns:
-        格式化后的文本内容
+        Formatted text content
     """
     if not cleaned_html:
         return ""
@@ -269,7 +268,7 @@ def format_html(
         logger.error(
             f"Error during final formatting ({output_format}) for {base_url}: {e}"
         )
-        # 回退：直接提取所有文本
+        # Fallback: directly extract all text
         try:
             formatted_content = soup.get_text(separator="\n", strip=True)
         except Exception:
@@ -277,7 +276,6 @@ def format_html(
     return formatted_content
 
 
-# --- Combined Function ---
 def clean_and_format_html(
     html_content: str,
     base_url: str,
@@ -291,8 +289,7 @@ def clean_and_format_html(
     return format_html(cleaned_html, base_url, output_format, markdownify_options)
 
 
-# --- Extract metadata from article html ---
-def extract_metadata_from_article_html(
+def extract_metadata_from_article_trafilatura(
     html_content: str, base_url: str
 ) -> Optional[Dict[str, Any]]:
     """Extract metadata from article html."""
@@ -305,6 +302,7 @@ def extract_metadata_from_article_html(
         favor_recall=True,
         with_metadata=True,
         only_with_metadata=True,
+        include_images=True,
     )
     if not document or not isinstance(document, Document):
         return None
@@ -314,4 +312,109 @@ def extract_metadata_from_article_html(
         "url": document.url,
         "date": document.date,
         "content": document.raw_text,
+        "top_image": document.image if document.image else "",
     }
+
+
+def extract_metadata_from_article_newspaper4k(
+    html_content: str, base_url: str
+) -> Optional[Dict[str, Any]]:
+    """Extract metadata from article html using newspaper4k."""
+    from newspaper import Article
+
+    article = Article(base_url)
+    article.download(html_content)
+    article.parse()
+    image_url = None
+    if article.top_image:
+        image_url = article.top_image
+    else:
+        if article.meta_img:
+            image_url = article.meta_img
+        else:
+            if article.images:
+                image_url = article.images[0]
+            else:
+                image_url = ""
+
+    return {
+        "title": article.title,
+        "url": article.url,
+        "date": article.publish_date,
+        "content": article.text,
+        "top_image": image_url,
+    }
+
+
+def extract_metadata_combined_newspaper4k_trafilatura(
+    html_content: str, base_url: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Extracts metadata from article HTML using both newspaper4k and trafilatura,
+    combining their results.
+
+    It prioritizes valid (non-None and non-empty for strings) results from
+    newspaper4k, then falls back to trafilatura for any fields not
+    satisfactorily filled by newspaper4k.
+
+    Args:
+        html_content: The HTML content of the article.
+        base_url: The base URL of the webpage.
+
+    Returns:
+        A dictionary containing the combined metadata (title, url, date,
+        content, image), or None if no useful metadata could be extracted
+        from either source.
+    """
+
+    # Get metadata from both sources
+    # These functions already handle their own internal errors and might return None
+    n4k_metadata = extract_metadata_from_article_newspaper4k(html_content, base_url)
+    traf_metadata = extract_metadata_from_article_trafilatura(html_content, base_url)
+
+    keys_to_extract = ["title", "url", "date", "content", "top_image"]
+
+    # Initialize with None to ensure all keys are present in the output dictionary
+    combined_metadata: Dict[str, Any] = {key: None for key in keys_to_extract}
+
+    def is_value_valid(value: Any) -> bool:
+        """
+        Checks if a metadata value is considered valid.
+        For strings, it must not be None or an empty/whitespace-only string.
+        For other types (like datetime for 'date'), it must not be None.
+        """
+        if value is None:
+            return False
+        if isinstance(value, str) and not value.strip():
+            return False
+        return True
+
+    for key in keys_to_extract:
+        val_n4k = n4k_metadata.get(key) if n4k_metadata else None
+        val_traf = traf_metadata.get(key) if traf_metadata else None
+
+        if is_value_valid(val_n4k):
+            combined_metadata[key] = val_n4k
+            logger.debug(
+                f"For {base_url}, using '{key}' from newspaper4k: {str(val_n4k)[:50]}..."
+            )
+        elif is_value_valid(val_traf):
+            combined_metadata[key] = val_traf
+            logger.debug(
+                f"For {base_url}, using '{key}' from trafilatura (newspaper4k was invalid/None): {str(val_traf)[:50]}..."
+            )
+        else:
+            logger.debug(
+                f"For {base_url}, no valid value found for '{key}' from either source."
+            )
+
+    # If no valid data was extracted at all from any field by either method,
+    # it might be appropriate to return None, consistent with the individual functions.
+    if all(value is None for value in combined_metadata.values()):
+        logger.warning(
+            f"Could not extract any valid metadata fields for {base_url} from either source."
+        )
+        return None
+
+    logger.info(f"Successfully combined metadata for {base_url}.")
+    return combined_metadata

@@ -48,6 +48,7 @@ export interface NewsItem {
   source_name?: string;
   category_name?: string;
   created_at?: string; // New field for creation timestamp
+  top_image?: string; // URL of the top image
 }
 
 export interface NewsItemCreate {

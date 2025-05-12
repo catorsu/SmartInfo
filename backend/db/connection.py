@@ -214,6 +214,7 @@ class DatabaseConnectionManager:
                             {News.ANALYSIS} TEXT,
                             {News.DATE} TEXT,
                             {News.CONTENT} TEXT,
+                            {News.TOP_IMAGE} TEXT,
                             {News.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
                             {News.CREATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- New column
                             FOREIGN KEY ({News.SOURCE_ID}) REFERENCES {NewsSource.TABLE_NAME}({NewsSource.ID}) ON DELETE SET NULL,
