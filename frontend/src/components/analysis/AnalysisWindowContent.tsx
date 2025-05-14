@@ -19,7 +19,8 @@ interface AnalysisWindowContentProps {
   startAnalysisImmediately?: boolean;
 }
 
-const FIXED_CONTENT_HEIGHT = '65vh';
+const MAX_CONTENT_HEIGHT = '65vh';
+const MIN_CONTENT_HEIGHT = '30vh'; // Adjusted for a reasonable minimum display
 
 const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
   newsItemId,
@@ -169,7 +170,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
   if (showInitialLoadingSpinner && !itemError) {
     return (
-      <div style={{ height: FIXED_CONTENT_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <Spin size="large" tip={isItemLoading ? "Loading news item..." : "Initiating analysis..."} />
       </div>
     );
@@ -177,7 +178,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
   if (itemError) { // Error fetching the item itself
     return (
-      <div style={{ height: FIXED_CONTENT_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <Empty description={itemError} />
       </div>
     );
@@ -185,7 +186,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
   if (!displayTitle && !isItemLoading) { // No item details could be loaded (and not because it's still loading)
      return (
-        <div style={{ height: FIXED_CONTENT_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <Empty description="News item details could not be loaded." />
         </div>
       );
@@ -194,7 +195,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
   // Display stream-specific error if one occurred
   if (streamError) {
     return (
-      <div style={{ height: FIXED_CONTENT_HEIGHT, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ minHeight: '200px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <Alert
           message="Analysis Error"
           description={streamError}
@@ -209,11 +210,12 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
   return (
     <div style={{
-      height: FIXED_CONTENT_HEIGHT,
+      minHeight: '80vh', // Further adjusted minHeight for a taller "red box"
+      maxHeight: '90vh',  // Further adjusted maxHeight for a taller "red box"
       display: 'flex',
       flexDirection: 'column',
-      padding: '20px',
-      overflow: 'hidden'
+      padding: '20px', // This padding provides the symmetrical spacing
+      overflow: 'hidden' 
     }}>
       {displayTitle && (
         <div style={{ flexShrink: 0 }}>
@@ -237,11 +239,15 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
                   type="text"
                   icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
                   onClick={handleForceAnalysis}
-                  loading={isStreaming && !streamError} // Only show loading if actively trying to stream without error
+                  /* loading prop removed */
                   style={{ padding: '0 4px', color: 'var(--accent-color)', marginLeft: '8px' }}
                   size="small"
                 />
               </Tooltip>
+            )}
+            {/* New Standalone Spinner - visible when streaming and no error */}
+            {isStreaming && !streamError && (
+              <Spin size="small" style={{ marginLeft: '8px', display: 'flex', alignItems: 'center' }} />
             )}
           </Space>
           {displaySummary && <Paragraph type="secondary" style={{ marginBottom: '12px' }}>{displaySummary}</Paragraph>}
@@ -250,10 +256,13 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
       )}
 
       <div style={{
-        flexGrow: 1,        
-        overflowY: 'auto',   
-        minHeight: 0,       
-        paddingRight: '8px',
+        flexGrow: 1,        // Allows this div to expand vertically to fill available space
+        overflowY: 'auto',   // Enables scrolling for long content within this div
+        minHeight: 0,       // Necessary for flex item shrinking behavior
+        paddingRight: '8px', // Keeps existing padding
+        display: 'flex',         // Turns this div into a flex container
+        flexDirection: 'column',  // Stacks its children (e.g., Paragraph, Empty state) vertically
+        justifyContent: 'flex-start' // Align content to the top
       }}>
           {analysisContent ? (
             <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
@@ -263,13 +272,6 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
              <Empty description="Analysis complete, but no content was generated." image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : null }
 
-
-          {isStreaming && !streamError && ( // Show streaming indicator only if actively streaming and no error
-            <div style={{ textAlign: 'left', padding: '10px 0 0 0', color: 'var(--text-secondary)' }}>
-              <Spin size="small" style={{ marginRight: '8px' }} />
-              <em>Streaming analysis...</em>
-            </div>
-          )}
 
           {/* Fallback Empty state if no content, not streaming, and not explicitly completed empty */}
           {!analysisContent && !isStreaming && (!isComplete || streamError) && (
