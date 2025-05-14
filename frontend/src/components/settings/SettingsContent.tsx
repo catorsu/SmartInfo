@@ -20,7 +20,6 @@ import {
   InputNumber,
   Tag,
   Tooltip,
-  // Row, Col added for centering
 } from 'antd';
 import {
   EditOutlined,
@@ -40,10 +39,10 @@ import { ApiKey, NewsCategory, NewsSource } from '@/utils/types';
 import * as settingsService from '@/services/settingsService';
 import * as newsService from '@/services/newsService';
 import * as authService from '@/services/authService';
-import MainLayout from '../components/layout/MainLayout';
-import { handleApiError, extractErrorMessage } from '../utils/apiErrorHandler';
-import withAuth from '@/components/auth/withAuth';
-import { useAuth } from '../context/AuthContext';
+// Removed MainLayout import
+import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler';
+// Removed withAuth import
+import { useAuth } from '@/context/AuthContext';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -58,7 +57,8 @@ interface ApiKeyFormValues {
   description?: string;
 }
 
-const Settings: React.FC = () => {
+// Renamed component
+const SettingsContent: React.FC = () => {
   const { user, logout, loading: authLoading, updateUserProfile } = useAuth();
   const [settings, setSettings] = useState<Record<string, any>>({});
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -94,7 +94,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     loadAllData();
   }, []);
-  
+
   const loadAllData = async () => {
     try {
       setLoading(true);
@@ -113,7 +113,7 @@ const Settings: React.FC = () => {
       setLoading(false);
     }
   };
-  
+
   const loadSettings = async () => {
     try {
       setSettingsLoading(true);
@@ -127,7 +127,7 @@ const Settings: React.FC = () => {
       setSettingsLoading(false);
     }
   };
-  
+
   const loadApiKeys = async () => {
     try {
       setApiKeysLoading(true);
@@ -140,7 +140,7 @@ const Settings: React.FC = () => {
       setApiKeysLoading(false);
     }
   };
-  
+
   const loadCategories = async () => {
     try {
       const categoriesData = await newsService.getCategories();
@@ -149,7 +149,7 @@ const Settings: React.FC = () => {
       console.error('Failed to load categories:', err);
     }
   };
-  
+
   const loadSources = async () => {
     try {
       const sourcesData = await newsService.getSources();
@@ -164,7 +164,7 @@ const Settings: React.FC = () => {
       [key]: value
     }));
   };
-  
+
   const saveSettings = async (values: Record<string, any>) => {
     try {
       setSavingSettings(true);
@@ -177,7 +177,7 @@ const Settings: React.FC = () => {
       setSavingSettings(false);
     }
   };
-  
+
   const resetSettings = async () => {
     try {
       setLoading(true);
@@ -197,7 +197,7 @@ const Settings: React.FC = () => {
     setEditingApiKeyId(null);
     setIsApiKeyModalVisible(true);
   };
-  
+
   const showEditApiKeyModal = (record: ApiKey) => {
     setEditingApiKey(record);
     setEditingApiKeyId(record.id);
@@ -227,11 +227,11 @@ const Settings: React.FC = () => {
         setEditingApiKeyId(null);
       });
   };
-  
+
   const handleApiKeySave = async () => {
     try {
       const values = await apiKeyForm.validateFields();
-      
+
       if (editingApiKey) {
         await settingsService.updateApiKey(editingApiKeyId!, values);
         message.success('API key updated successfully');
@@ -239,14 +239,14 @@ const Settings: React.FC = () => {
         await settingsService.createApiKey(values);
         message.success('API key created successfully');
       }
-      
+
       setIsApiKeyModalVisible(false);
       loadApiKeys();
     } catch (error) {
       handleApiError(error, 'Failed to save API key');
     }
   };
-  
+
   const handleDeleteApiKey = async (apiKeyId: number) => {
     try {
       await settingsService.deleteApiKey(apiKeyId);
@@ -258,11 +258,11 @@ const Settings: React.FC = () => {
   };
   const handleTestApiKey = async (apiKeyId: number) => {
     const testMessage = message.loading('Testing API key connection...', 0);
-    
+
     try {
       const result = await settingsService.testApiKey(apiKeyId);
       testMessage();
-      
+
       if (result.status === 'success') {
         message.success('Connection test successful!');
       } else {
@@ -278,7 +278,7 @@ const Settings: React.FC = () => {
     setEditingSourceId(null);
     setIsSourceModalVisible(true);
   };
-  
+
   const showEditSourceModal = (record: NewsSource) => {
     sourceForm.setFieldsValue({
       name: record.name,
@@ -288,11 +288,11 @@ const Settings: React.FC = () => {
     setEditingSourceId(record.id);
     setIsSourceModalVisible(true);
   };
-  
+
   const handleSourceSave = async () => {
     try {
       const values = await sourceForm.validateFields();
-      
+
       if (editingSourceId) {
         await newsService.updateSource(editingSourceId, values);
         message.success('Source updated successfully');
@@ -300,7 +300,7 @@ const Settings: React.FC = () => {
         await newsService.createSource(values);
         message.success('Source created successfully');
       }
-      
+
       setIsSourceModalVisible(false);
       loadSources();
     } catch (error) {
@@ -308,7 +308,7 @@ const Settings: React.FC = () => {
       message.error('Failed to save source');
     }
   };
-  
+
   const handleDeleteSource = async (id: number) => {
     try {
       await newsService.deleteSource(id);
@@ -323,13 +323,13 @@ const Settings: React.FC = () => {
     setNewCategoryName('');
     setIsAddCategoryModalVisible(true);
   };
-  
+
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
       message.error('Category name cannot be empty');
       return;
     }
-    
+
     try {
       const newCategory = await newsService.createCategory({ name: newCategoryName });
       message.success('Category created successfully');
@@ -340,7 +340,7 @@ const Settings: React.FC = () => {
       handleApiError(error, 'Failed to create category');
     }
   };
-  
+
   const handleDeleteCategoryTag = (categoryId: number) => {
     Modal.confirm({
       title: 'Confirm Deletion',
@@ -401,8 +401,8 @@ const Settings: React.FC = () => {
       key: 'action',
       render: (_: any, record: ApiKey) => (
         <Space>
-          <Tooltip title="Edit API Key"><Button 
-            icon={<EditOutlined />} 
+          <Tooltip title="Edit API Key"><Button
+            icon={<EditOutlined />}
             onClick={() => showEditApiKeyModal(record)}
             size="small"
           /></Tooltip>
@@ -417,7 +417,7 @@ const Settings: React.FC = () => {
             okText="Yes"
             cancelText="No"
           >
-            <Tooltip title="Delete API Key"><Button 
+            <Tooltip title="Delete API Key"><Button
               danger
               icon={<DeleteOutlined />}
               size="small"
@@ -427,7 +427,7 @@ const Settings: React.FC = () => {
       ),
     },
   ];
-  
+
   const sourceColumns: TableProps<NewsSource>['columns'] = [
     {
       title: 'Name',
@@ -455,14 +455,14 @@ const Settings: React.FC = () => {
           <span>Action</span>
           <Tooltip title="Add Source">
             <Button
-            type="primary"
-            ghost
-            shape="circle"
-            icon={<PlusOutlined />}
-            size="small"
-            style={{ marginLeft: 8 }}
+              type="primary"
+              ghost
+              shape="circle"
+              icon={<PlusOutlined />}
+              size="small"
+              style={{ marginLeft: 8 }}
               onClick={(e) => { e.stopPropagation(); showAddSourceModal(); }}
-                        />
+            />
           </Tooltip>
         </div>
       ),
@@ -490,7 +490,7 @@ const Settings: React.FC = () => {
       ),
     },
   ];
-  
+
   const handlePasswordModalOk = async () => {
     try {
       const values = await passwordForm.validateFields();
@@ -527,7 +527,7 @@ const Settings: React.FC = () => {
         current_password: values.currentPassword,
       });
       message.success('Username successfully changed!');
-      const { updateUserProfile } = useAuth();
+      // Use updateUserProfile from context
       if (typeof updateUserProfile === 'function') {
           updateUserProfile(updatedUser);
       }
@@ -556,8 +556,9 @@ const Settings: React.FC = () => {
     }
   };
 
+  // Removed MainLayout wrapper
   return (
-    <MainLayout>
+    <div> {/* Changed from MainLayout to a simple div or fragment */}
       <Row justify="center" style={{ width: '100%' }}>
         <Col xs={24} sm={24} md={24} lg={23} xl={22}>
           <Title level={2} style={{ textAlign: 'center', marginBottom: '24px' }}>System Settings</Title>
@@ -598,7 +599,7 @@ const Settings: React.FC = () => {
                       <Form.Item
                         key={key}
                         name={key}
-                        label={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        label={key.replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase())}
                       >
                         <Input />
                       </Form.Item>
@@ -837,7 +838,7 @@ const Settings: React.FC = () => {
                   { type: 'number', min: 1, message: 'Max output tokens must be a positive integer' },
                   ({ getFieldValue }) => ({
                     validator(_, value) {
-                      if (!value || getFieldValue('context') > value) { 
+                      if (!value || getFieldValue('context') > value) {
                       return Promise.resolve();
                       }
                       return Promise.reject(new Error('Context length must be greater than or equal to max output tokens'));
@@ -1008,8 +1009,9 @@ const Settings: React.FC = () => {
           </Modal>
         </Col>
       </Row>
-    </MainLayout>
+    </div> // Changed from MainLayout to a simple div or fragment
   );
 };
 
-export default withAuth(Settings);
+// Removed withAuth export
+export default SettingsContent; // Export the new component

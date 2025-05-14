@@ -61,6 +61,7 @@
     font-weight: 500 !important;
     /* Make selected item text bolder */
     position: relative;
+    /* background-color: var(--tertiary-bg) !important; */ /* Reverted distinct background */
 }
 
 .appSider .ant-menu-item-selected::before {
@@ -112,7 +113,7 @@
     width: 100%;
     padding: 8px;
     /* Reduced padding for bottom */
-    border-top: 1px solid var(--border-color);
+    /* border-top: 1px solid var(--border-color); */ /* Removed this border */
 }
 
 .siderBottomSection .ant-menu-item {
@@ -146,6 +147,26 @@
     color: var(--text-primary) !important;
 }
 */
+
+/* Icon Coordination Styles */
+.siderMainMenu .ant-menu-item .anticon-read,
+.newChatButton .anticon-plus {
+    font-size: 18px; /* Adjust desired size */
+    color: var(--text-secondary); /* Adjust desired default color */
+    transition: color 0.3s;
+}
+
+/* Ensure selected menu item icon uses accent color */
+.appSider .ant-menu-item-selected .anticon-read,
+.siderChatMenu .ant-menu-item-selected .ant-typography {
+    color: var(--accent-color) !important; /* Use accent color for selected item text/icon */
+}
+
+/* Optional: Style New Chat button icon hover if needed */
+.newChatButton:hover .anticon-plus {
+   color: var(--accent-color); /* Example hover color */
+}
+
 
 .gradientLogoText {
     font-weight: 600;

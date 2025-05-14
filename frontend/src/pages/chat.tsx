@@ -218,7 +218,7 @@ const ChatPageInternal: React.FC = () => {
       height: '100%', // Fill the parent Content area from MainLayout
       display: 'flex',
       flexDirection: 'column',
-      background: '#fff',
+      // background: '#fff', // Removed explicit background
       padding: 24,
       borderRadius: 8,
     }}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Spin, Alert, Space, Divider, Empty, Tooltip } from 'antd';
-import { LinkOutlined } from '@ant-design/icons';
+import { Typography, Spin, Alert, Space, Divider, Empty, Tooltip, Button } from 'antd';
+import { LinkOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { NewsItem } from '@/utils/types';
 import * as newsService from '@/services/newsService';
 import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler';
@@ -14,11 +14,61 @@ interface AnalysisWindowContentProps {
 const FIXED_CONTENT_HEIGHT = '65vh';
 
 const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({ newsItemId }) => {
+  // Added handleForceAnalysis function for the new button
   const [newsItem, setNewsItem] = useState<NewsItem | null>(null);
   const [analysisContent, setAnalysisContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null);
+
+  const handleForceAnalysis = async () => {
+    if (!newsItemId) return;
+
+    setError(null);
+    setAnalysisContent(''); 
+    setIsStreaming(true);
+    setIsLoading(true); 
+
+    try {
+      const response = await newsService.streamAnalysis(newsItemId, true); 
+      if (!response.body) throw new Error("Streaming response body is empty.");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let firstChunkReceived = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        if (!firstChunkReceived) {
+          setIsLoading(false); 
+          firstChunkReceived = true;
+        }
+
+        const decodedChunk = decoder.decode(value, { stream: true });
+        setAnalysisContent(prev => prev + decodedChunk);
+      }
+
+      const finalChunk = decoder.decode(); 
+      if (finalChunk) {
+        setAnalysisContent(prev => prev + finalChunk);
+      }
+      
+      if (!firstChunkReceived) { 
+          setIsLoading(false);
+          setAnalysisContent('No analysis generated or content available.'); 
+      }
+
+    } catch (streamError: any) {
+      console.error("Forced analysis streaming failed:", streamError);
+      const errorDetails = extractErrorMessage(streamError);
+      setError(errorDetails);
+      setIsLoading(false); 
+    } finally {
+      setIsStreaming(false); 
+    }
+  };
 
   useEffect(() => {
     const fetchNewsAndAnalyze = async () => {
@@ -37,57 +87,19 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({ newsItemI
           return;
         }
 
-        setNewsItem(item);
+        setNewsItem(item); // Set newsItem regardless of analysis presence first
 
         if (item.analysis) {
           setAnalysisContent(item.analysis);
           setIsLoading(false);
-          setIsStreaming(false);
+          setIsStreaming(false); // Ensure streaming is false
         } else {
-          setIsStreaming(true);
-          setIsLoading(true);
-
-          try {
-            const response = await newsService.streamAnalysis(newsItemId);
-            if (!response.body) throw new Error("Streaming response body is empty.");
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let receivedContent = '';
-            let firstChunkReceived = false;
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              if (!firstChunkReceived) {
-                setIsLoading(false);
-                firstChunkReceived = true;
-              }
-
-              const decodedChunk = decoder.decode(value, { stream: true });
-              receivedContent += decodedChunk;
-              setAnalysisContent(prev => prev + decodedChunk);
-            }
-
-            const finalChunk = decoder.decode();
-            if (finalChunk) {
-              setAnalysisContent(prev => prev + finalChunk);
-            }
-
-            if (!firstChunkReceived) {
-                setIsLoading(false);
-                setAnalysisContent('No analysis generated or content available.');
-            }
-
-          } catch (streamError: any) {
-            console.error("Streaming analysis failed:", streamError);
-            const errorDetails = extractErrorMessage(streamError);
-            setError(errorDetails);
-            setIsLoading(false);
-          } finally {
-            setIsStreaming(false);
-          }
+          // If no analysis, just set loading and streaming to false.
+          // DO NOT automatically start streaming here.
+          setAnalysisContent(''); // Ensure analysisContent is empty
+          setIsLoading(false);
+          setIsStreaming(false);
+          // The automatic streaming block that was here is removed.
         }
       } catch (fetchError: any) {
         console.error("Failed to fetch news item:", fetchError);
@@ -172,6 +184,18 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({ newsItemI
               </a>
             </Tooltip>
            )}
+          {newsItem && !newsItem.analysis && (!analysisContent || analysisContent === 'No analysis generated or content available.') && !isStreaming && !isLoading && (
+            <Tooltip title="Analyze News">
+              <Button
+                type="text"
+                icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
+                onClick={handleForceAnalysis}
+                loading={isStreaming}
+                style={{ padding: '0 4px', color: 'var(--accent-color)', marginLeft: '8px' }}
+                size="small"
+              />
+            </Tooltip>
+          )}
         </Space>
         {newsItem.summary && <Paragraph type="secondary" style={{ marginBottom: '12px' }}>{newsItem.summary}</Paragraph>}
         <Divider style={{ marginTop: '0px', marginBottom: '12px' }} />
@@ -188,11 +212,33 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({ newsItemI
               <Spin size="small" /> Streaming analysis...
            </div>
         ) : analysisContent && analysisContent !== 'No analysis generated or content available.' ? ( 
-        <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
-        {analysisContent}
-        </Paragraph>
+          <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
+            {analysisContent}
+          </Paragraph>
         ) : (
-          <Empty description="No analysis available or generated." image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+          // No valid content, not streaming
+          newsItem && newsItem.analysis ? ( // Original analysis existed, but current analysisContent is empty/failed
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <Paragraph type="secondary" style={{marginBottom: '12px'}}>
+                The previous attempt to re-analyze yielded no content, or the original analysis could not be displayed.
+              </Paragraph>
+              <Button type="primary" onClick={handleForceAnalysis} loading={isStreaming}>
+                Re-analyze News
+              </Button>
+            </div>
+          ) : ( // No original analysis, and current analysisContent is empty/failed
+            <Empty 
+              description={
+                <>
+                  No analysis available for this item. 
+                  Click the <ExperimentOutlined style={{ color: 'var(--accent-color)'}} /> icon in the header to generate one.
+                  {analysisContent === 'No analysis generated or content available.' && 
+                   ' The previous attempt yielded no content.'}
+                </>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          )
         )}
       </div>
     </div>

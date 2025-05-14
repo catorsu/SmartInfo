@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/router';
 import {
   Typography,
   Select,
@@ -90,6 +91,7 @@ const getStepDisplayString = (stepCode: TaskStep | number): string => {
 
 const NewsPage: React.FC = () => {
   const { token } = useAuth();
+  const router = useRouter();
 
   const [news, setNews] = useState<NewsItem[]>([]);
   const [categories, setCategories] = useState<NewsCategory[]>([]);
@@ -692,9 +694,11 @@ const NewsPage: React.FC = () => {
                         marginBottom: '0', 
                         width: '100%',
                         border: 'none', // Remove individual card border if List.Item provides separation
-                        borderRadius: 0 // Remove individual card radius if it's a continuous list
+                        borderRadius: 0, // Remove individual card radius if it's a continuous list
+                        cursor: 'pointer' // Added cursor for clickability
                       }} 
                       bodyStyle={{ padding: '20px' }}
+                      onClick={() => router.push(`/analyze/${item.id}`)} // Added onClick to navigate
                     >
                       <Row gutter={[16, 16]} align="top">
                         {/* Group 2: Image (Now on Left) */}
@@ -766,6 +770,7 @@ const NewsPage: React.FC = () => {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   icon={<LinkOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
+                                  onClick={(e) => { e.stopPropagation(); }}
                                   style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
                                 />
                               
@@ -774,7 +779,7 @@ const NewsPage: React.FC = () => {
                               <Button
                                 type="text"
                                 icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
-                                onClick={() => openAnalysisModal(item.id)}
+                                onClick={(e) => { e.stopPropagation(); router.push(`/analyze/${item.id}`); }}
                                 style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
                               />
                             
@@ -1054,29 +1059,7 @@ const NewsPage: React.FC = () => {
         />
       )}
 
-      {/* Action FABs */}
-      <FloatButton.Group
-        trigger="hover"
-        style={{ right: 24, bottom: 24 }}
-        icon={<AppstoreOutlined />}
-        className="action-fab-group" // Added className
-      >
-        <FloatButton
-          icon={<DownloadOutlined />}
-          tooltip="Get News"
-          onClick={showFetchModal}
-          type="primary"
-        />
-        <FloatButton
-          icon={<BarsOutlined />}
-          tooltip={`Progress ${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length > 0 ? `(${tasksToMonitor.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped').length})` : ''}`}
-          onClick={() => {
-            setViewingDate('today');
-            fetchTodaysHistory();
-            setIsTaskDrawerVisible(true);
-          }}
-        />
-      </FloatButton.Group>
+      {/* Action FABs moved to MainLayout */}
     </div>
   );
 };
