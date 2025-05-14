@@ -57,6 +57,7 @@ import debounce from 'lodash/debounce';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import AnalysisModal from '@/components/analysis/AnalysisModal';
 import withAuth from '@/components/auth/withAuth';
+import { usePageActions } from '@/context/PageActionContext';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
@@ -90,6 +91,7 @@ const getStepDisplayString = (stepCode: TaskStep | number): string => {
 };
 
 const NewsPage: React.FC = () => {
+  const { registerShowFetchModal, registerShowTaskDrawer } = usePageActions();
   const { token } = useAuth();
   const router = useRouter();
 
@@ -382,19 +384,37 @@ const NewsPage: React.FC = () => {
     loadNews(filters);
   }, [filters, loadNews]);
 
+  const showFetchModal = useCallback(() => {
+    setSelectedFetchCategory(undefined);
+    setFilteredFetchSources(sources); // Ensure 'sources' is available in dependencies if used
+    setSelectedSourceIds([]);
+    setSelectAllSources(false);
+    setIsIndeterminate(false);
+    setIsFetchModalVisible(true);
+  }, [sources, setFilteredFetchSources, setSelectedFetchCategory, setSelectedSourceIds, setSelectAllSources, setIsIndeterminate, setIsFetchModalVisible]);
+
+  const showTaskDrawer = useCallback(() => {
+    // Assuming fetchTodaysHistory is stable or included in deps if needed
+    // setViewingDate('today'); // If these are part of showing the drawer, include them and their setters in deps
+    // fetchTodaysHistory();
+    setIsTaskDrawerVisible(true);
+  }, [setIsTaskDrawerVisible]); // Add fetchTodaysHistory, setViewingDate if they are called here
+
+  useEffect(() => {
+    registerShowFetchModal(showFetchModal);
+    registerShowTaskDrawer(showTaskDrawer);
+    return () => {
+      registerShowFetchModal(null); // Unregister on unmount
+      registerShowTaskDrawer(null); // Unregister on unmount
+    };
+  }, [registerShowFetchModal, showFetchModal, registerShowTaskDrawer, showTaskDrawer]);
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Unknown date';
     return dayjs(dateString).format('YYYY-MM-DD');
   };
 
-  const showFetchModal = () => {
-    setSelectedFetchCategory(undefined);
-    setFilteredFetchSources(sources);
-    setSelectedSourceIds([]);
-    setSelectAllSources(false);
-    setIsIndeterminate(false);
-    setIsFetchModalVisible(true);
-  };
+
 
   const handleFetchCategoryChange = (value: number | undefined) => {
     setSelectedFetchCategory(value);
@@ -779,7 +799,7 @@ const NewsPage: React.FC = () => {
                               <Button
                                 type="text"
                                 icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
-                                onClick={(e) => { e.stopPropagation(); router.push(`/analyze/${item.id}`); }}
+                                onClick={(e) => { e.stopPropagation(); router.push(`/analyze/${item.id}?initiate=true`); }}
                                 style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
                               />
                             

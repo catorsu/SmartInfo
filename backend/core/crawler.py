@@ -82,9 +82,9 @@ class AiohttpCrawler:
 
         tcp_connector = aiohttp.TCPConnector(
             limit=max_concurrent_requests,
-            ttl_dns_cache=300,  # 5 minutes DNS cache TTL
+            ttl_dns_cache=300,
             # enable_cleanup_closed=True, # NOTE: fixed in python3.13
-            force_close=False,  # Keep connections open for reuse
+            force_close=False,
         )
 
         self.session = aiohttp.ClientSession(

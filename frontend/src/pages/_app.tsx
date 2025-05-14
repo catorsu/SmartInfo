@@ -4,6 +4,7 @@ import type { AppProps } from 'next/app';
 import { ConfigProvider, Spin } from 'antd';
 import MainLayout from '@/components/layout/MainLayout';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { PageActionProvider } from '@/context/PageActionContext';
 import { useRouter } from 'next/router';
 import '@/styles/globals.css';
 
@@ -142,7 +143,9 @@ export default function App({ Component, pageProps, router }: AppProps & { route
             }}
         >
             <AuthProvider>
-                <AppContent Component={Component} pageProps={pageProps} router={router} />
+                <PageActionProvider>
+                    <AppContent Component={Component} pageProps={pageProps} router={router} />
+                </PageActionProvider>
             </AuthProvider>
         </ConfigProvider>
     );

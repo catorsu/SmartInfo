@@ -21,6 +21,7 @@ import { extractErrorMessage } from '@/utils/apiErrorHandler'; // For error hand
 import axios from 'axios'; // For checking API error type
 import styles from './MainLayout.module.css';
 import SettingsContent from '@/components/settings/SettingsContent'; // Import Settings Content
+import { usePageActions } from '@/context/PageActionContext';
 
 const { Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -110,6 +111,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [filteredChats, setFilteredChats] = useState<Chat[]>([]);
   const [selectedKey, setSelectedKey] = useState('news');
   const { isAuthenticated, user, logout, loading: authLoading, setRefreshChatListCallback } = useAuth(); // Get setRefreshChatListCallback
+  const { triggerShowFetchModal, triggerShowTaskDrawer } = usePageActions();
 
   useEffect(() => {
     const path = router.pathname;
@@ -236,21 +238,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   // Placeholder handlers for FABs - functionality needs to be connected/lifted
-  const handleShowFetchModal = () => {
-    console.log('handleShowFetchModal called - needs implementation');
-    // TODO: Lift state/logic or use context/event bus to open the fetch modal
-    message.info('Get News: Functionality needs connection.');
-  };
+  // const handleShowFetchModal = () => {
+  //   console.log('handleShowFetchModal called - needs implementation');
+  //   // TODO: Lift state/logic or use context/event bus to open the fetch modal
+  //   message.info('Get News: Functionality needs connection.');
+  // };
 
-  const handleShowTaskDrawer = () => {
-    console.log('handleShowTaskDrawer called - needs implementation');
-    // TODO: Lift state/logic or use context/event bus to open the task drawer
-    message.info('View Progress: Functionality needs connection.');
-    // Example logic that might be needed:
-    // setViewingDate('today');
-    // fetchTodaysHistory(); // This function would also need to be accessible
-    // setIsTaskDrawerVisible(true);
-  };
+  // const handleShowTaskDrawer = () => {
+  //   console.log('handleShowTaskDrawer called - needs implementation');
+  //   // TODO: Lift state/logic or use context/event bus to open the task drawer
+  //   message.info('View Progress: Functionality needs connection.');
+  //   // Example logic that might be needed:
+  //   // setViewingDate('today');
+  //   // fetchTodaysHistory(); // This function would also need to be accessible
+  //   // setIsTaskDrawerVisible(true);
+  // };
 
   const handleShowSettingsModal = () => {
     setIsSettingsModalVisible(true);
@@ -487,13 +489,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <FloatButton
           icon={<DownloadOutlined />}
           tooltip="Get News"
-          onClick={handleShowFetchModal}
+          onClick={triggerShowFetchModal}
           type="primary"
         />
         <FloatButton
           icon={<BarsOutlined />}
           tooltip="View Progress" // Simplified tooltip for now
-          onClick={handleShowTaskDrawer}
+          onClick={triggerShowTaskDrawer}
         />
         <FloatButton
           icon={<SettingOutlined />}
