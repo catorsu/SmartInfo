@@ -129,17 +129,36 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
     // This should happen *after* initial state is potentially set from manager
     if (startAnalysisImmediately) {
         const currentSnapshot = analysisStreamManager.getStreamStateSnapshot(newsItemId);
-        const shouldInitiate = !currentSnapshot || (!currentSnapshot.isStreaming && currentSnapshot.isComplete); // Start if no stream or if completed (allows re-analysis if startImmediately is true)
+        // Ensure shouldInitiate correctly reflects the need to start afresh. 
+        // Original: const shouldInitiate = !currentSnapshot || (!currentSnapshot.isStreaming && currentSnapshot.isComplete);
+        // Let's refine to be more explicit about restarting based on startAnalysisImmediately if it was previously complete.
+        const shouldReallyInitiate = !currentSnapshot || // No stream ever existed
+                                  (!currentSnapshot.isStreaming && currentSnapshot.isComplete) || // Was complete, startAnalysisImmediately implies we want it fresh
+                                  (currentSnapshot.error); // Had an error, try again
 
-        if (shouldInitiate) {
+        if (shouldReallyInitiate && (!currentSnapshot || !currentSnapshot.isStreaming)) { // Only initiate if not already streaming for this item
             // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true. Initiating stream (forceRestart=false).`);
+            
+            // Explicitly reset local UI state for immediate feedback
+            setAnalysisContent('');
+            setIsStreaming(true);
+            setIsComplete(false);
+            setStreamError(null);
+            
             analysisStreamManager.initiateStream(newsItemId, false); // false = don't force if already active from another source/tab
         } else if (currentSnapshot && currentSnapshot.isStreaming) {
             // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true, but stream already active. Component will display it.`);
-        } else if (currentSnapshot && !currentSnapshot.isStreaming && !currentSnapshot.isComplete) {
-             // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true, stream exists but not active and not complete (e.g. initial empty state). Initiating stream.`);
-             analysisStreamManager.initiateStream(newsItemId, false);
+            // State is already managed by the subscription, ensure UI reflects current stream
+            handleManagerStateUpdate(currentSnapshot); 
+        } else if (currentSnapshot && !currentSnapshot.isStreaming && !currentSnapshot.isComplete && !currentSnapshot.error) {
+             // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true, stream exists but not active, not complete, no error (e.g. initial empty state). Initiating stream.`);
+            setAnalysisContent('');
+            setIsStreaming(true);
+            setIsComplete(false);
+            setStreamError(null);
+            analysisStreamManager.initiateStream(newsItemId, false);
         }
+        // The existing else if for fetchedNewsItem?.analysis can remain as is.
     } else if (fetchedNewsItem?.analysis && (!initialState || !initialState.content) && !initialState?.isStreaming) {
         // If not starting immediately, but fetched item has analysis, and manager has no content/stream for it,
         // set the analysis content from fetched item.
@@ -160,18 +179,21 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
   const handleForceAnalysis = () => {
     if (!newsItemId) return;
     // console.log(`[AnalysisWindowContent] Forcing analysis for newsItemId ${newsItemId}`);
-    setStreamError(null); // Clear previous stream errors
+    setAnalysisContent(''); 
+    setIsStreaming(true);
+    setIsComplete(false);
+    setStreamError(null); 
     // Content, isStreaming, isComplete will be updated by the manager via subscription
     analysisStreamManager.initiateStream(newsItemId, true); // true for forceRestart
   };
 
-  // Combined loading state: true if item is loading OR (if item is loaded but stream is starting and no content yet)
-  const showInitialLoadingSpinner = isItemLoading || (isStreaming && !analysisContent && !streamError);
+  // Combined loading state: true if item is loading
+  const showInitialLoadingSpinner = isItemLoading;
 
   if (showInitialLoadingSpinner && !itemError) {
     return (
       <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-        <Spin size="large" tip={isItemLoading ? "Loading news item..." : "Initiating analysis..."} />
+        <Spin size="large" tip={"Loading news item..."} />
       </div>
     );
   }

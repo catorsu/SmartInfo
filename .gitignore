@@ -73,3 +73,4 @@ tests/
 __tests__/
 clear_redis_key.py
 mcptestconfig.json
+.txt
