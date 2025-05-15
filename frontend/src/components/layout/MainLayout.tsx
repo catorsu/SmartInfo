@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Layout, Menu, Button, Input, Space, Typography, Divider, Spin, Avatar, Tooltip, Dropdown, Modal, Form as AntForm, message, FloatButton } from 'antd'; // Added FloatButton
+import { Layout, Menu, Button, Input, Space, Typography, Divider, Spin, Avatar, Tooltip, Dropdown, Modal, Form as AntForm, message, FloatButton } from 'antd';
 import {
   ReadOutlined,
   MessageOutlined,
@@ -8,19 +8,19 @@ import {
   SearchOutlined,
   LogoutOutlined,
   AppstoreOutlined,
-  EllipsisOutlined, // Added EllipsisOutlined
-  DownloadOutlined, // Added for global FAB
-  BarsOutlined      // Added for global FAB
+  EllipsisOutlined,
+  DownloadOutlined,
+  BarsOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Chat } from '@/utils/types';
 import * as chatService from '@/services/chatService';
-import { extractErrorMessage } from '@/utils/apiErrorHandler'; // For error handling
-import axios from 'axios'; // For checking API error type
+import { extractErrorMessage } from '@/utils/apiErrorHandler';
+import axios from 'axios';
 import styles from './MainLayout.module.css';
-import SettingsContent from '@/components/settings/SettingsContent'; // Import Settings Content
+import SettingsContent from '@/components/settings/SettingsContent';
 import { usePageActions } from '@/context/PageActionContext';
 
 const { Sider, Content } = Layout;
@@ -102,7 +102,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [hoveredChatId, setHoveredChatId] = useState<number | null>(null);
   const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
   const [renamingChatDetails, setRenamingChatDetails] = useState<{ id: number; currentTitle: string } | null>(null);
-  const [renameForm] = AntForm.useForm(); // Form instance for rename modal
+  const [renameForm] = AntForm.useForm();
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -110,7 +110,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [filteredChats, setFilteredChats] = useState<Chat[]>([]);
   const [selectedKey, setSelectedKey] = useState('news');
-  const { isAuthenticated, user, logout, loading: authLoading, setRefreshChatListCallback } = useAuth(); // Get setRefreshChatListCallback
+  const { isAuthenticated, user, logout, loading: authLoading, setRefreshChatListCallback } = useAuth();
   const { triggerShowFetchModal, triggerShowTaskDrawer } = usePageActions();
 
   useEffect(() => {
@@ -147,12 +147,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   useEffect(() => {
     // Only run the effect when the initial auth check is complete
     if (!authLoading) {  
-      loadChats(); // Call the memoized function for initial load
+      loadChats();
     }
 
-    // Set the callback for refreshing chat list
     if (setRefreshChatListCallback) {
-      setRefreshChatListCallback(loadChats); // Pass the memoized function
+      setRefreshChatListCallback(loadChats);
     }
 
     // Cleanup callback on unmount
@@ -178,13 +177,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   
   // Handle new chat button click
   const handleNewChat = () => {
-    // Check if already on the default chat page
     if (router.pathname === '/chat') {
-      console.log('Already on default chat page.');
       // Do nothing, user can just start typing
     } else {
-      console.log('Navigating to default chat page /chat');
-      // Navigate to the default chat page
       router.push('/chat');
       // The useEffect that watches router.pathname will handle updating selectedKey
     }
@@ -236,23 +231,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setIsRenameModalVisible(false);
     renameForm.resetFields();
   };
-
-  // Placeholder handlers for FABs - functionality needs to be connected/lifted
-  // const handleShowFetchModal = () => {
-  //   console.log('handleShowFetchModal called - needs implementation');
-  //   // TODO: Lift state/logic or use context/event bus to open the fetch modal
-  //   message.info('Get News: Functionality needs connection.');
-  // };
-
-  // const handleShowTaskDrawer = () => {
-  //   console.log('handleShowTaskDrawer called - needs implementation');
-  //   // TODO: Lift state/logic or use context/event bus to open the task drawer
-  //   message.info('View Progress: Functionality needs connection.');
-  //   // Example logic that might be needed:
-  //   // setViewingDate('today');
-  //   // fetchTodaysHistory(); // This function would also need to be accessible
-  //   // setIsTaskDrawerVisible(true);
-  // };
 
   const handleShowSettingsModal = () => {
     setIsSettingsModalVisible(true);
@@ -314,7 +292,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       >
         <div style={{ padding: `0 ${collapsed ? '0' : '24px'} 16px ${collapsed ? '0' : '24px'}`, textAlign: collapsed ? 'center' : 'left', height: '32px', marginBottom: '8px' }}>
           {collapsed ? (
-            <Avatar className={styles.siderLogoAvatar} /* ... */ >S</Avatar>
+            <Avatar className={styles.siderLogoAvatar} >S</Avatar>
           ) : (
             <Title level={4} className={styles.gradientLogoText} style={{ margin: 0 }}>
               SmartInfo
@@ -328,8 +306,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           items={mainMenuItems}
           className={styles.siderMainMenu}
         />
-
-        {/* Divider removed here */}
 
         <div style={{ padding: `0 ${collapsed ? '8px' : '16px'}`, marginBottom: '16px' }}>
           {!collapsed ? (
@@ -347,7 +323,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   icon={<PlusOutlined />}
                   onClick={handleNewChat}
                   aria-label="New Chat"
-                  className={styles.newChatButton} // Add this class
+                  className={styles.newChatButton}
                 />
               </Tooltip>
             </Space.Compact>
@@ -359,7 +335,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   icon={<PlusOutlined />}
                   onClick={handleNewChat}
                   aria-label="New Chat"
-                  className={styles.newChatButton} // Add this class (for collapsed view)
+                  className={styles.newChatButton}
                 />
               </Tooltip>
             </div>
@@ -464,7 +440,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             items={bottomMenuItems}
             className={styles.siderBottomMenu}
           />
-          {/* The entire block for the Logout button that was here is removed. */}
           {!collapsed && (
             <div style={{ textAlign: 'center', marginTop: '8px', paddingBottom: '8px' }}>
               <Text type="secondary" style={{ fontSize: '11px' }}>v1.0.0</Text>
@@ -484,7 +459,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         trigger="hover"
         style={{ right: 24, bottom: 24 }}
         icon={<AppstoreOutlined />}
-        // className="action-fab-group" // Apply necessary styles if needed
       >
         <FloatButton
           icon={<DownloadOutlined />}
@@ -509,7 +483,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         open={isRenameModalVisible}
         onOk={handleRenameOk}
         onCancel={handleRenameCancel}
-        // confirmLoading={/* Add loading state for rename operation if needed */}
       >
         <AntForm form={renameForm} layout="vertical" name="rename_chat_form">
           <AntForm.Item

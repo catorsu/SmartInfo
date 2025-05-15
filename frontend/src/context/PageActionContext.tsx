@@ -1,4 +1,3 @@
-// frontend/src/context/PageActionContext.tsx
 import React, { createContext, useState, useContext, useCallback, ReactNode } from 'react';
 
 interface PageActionContextType {

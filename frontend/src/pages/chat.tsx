@@ -99,18 +99,15 @@ const ChatPageInternal: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) {
-      console.log("Attempted to send empty message.");
       return;
     }
 
     if (selectedChatId === null) {
-      console.log("Sending first message for a new chat.");
       setIsProcessingFirstMessage(true); 
       const originalInputMessage = inputMessage;
 
       try {
         const newChat = await chatService.createChat({ title: originalInputMessage.substring(0, 50) + '...' });
-        console.log("New chat created:", newChat);
 
         setInputMessage('');
 
@@ -128,7 +125,6 @@ const ChatPageInternal: React.FC = () => {
       }
 
     } else {
-      console.log(`Sending message to existing chat: ${selectedChatId}`);
 
       const userMessageObj: Message = {
         id: Date.now(),

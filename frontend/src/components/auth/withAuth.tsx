@@ -12,10 +12,9 @@ const withAuth = <P extends object>(WrappedComponent: React.ComponentType<P>) =>
 
         useEffect(() => {
             if (!loading && !isAuthenticated) {
-                console.log('withAuth: Not authenticated, redirecting to /login');
                 router.replace('/login');
             } else if (!loading && isAuthenticated) {
-                console.log('withAuth: Authenticated, rendering component.');
+                // Intentionally empty, or add a comment if specific logic was meant here
             }
         }, [isAuthenticated, loading, router]);
 

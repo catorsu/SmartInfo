@@ -37,16 +37,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const validateToken = async () => {
       const storedToken = localStorage.getItem('authToken');
       if (storedToken) {
-        console.log("Found token in localStorage. Validating...");
         setToken(storedToken);
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
         
         try {
           const fetchedUser = await fetchUserProfile();
-          console.log("Token validation successful. User:", fetchedUser);
           setUser(fetchedUser);
           setIsAuthenticated(true);
-          console.log("Auth state initialized from validated token.");
         } catch (error: any) {
           console.error("Token validation failed:", error.message);
           localStorage.removeItem('authToken');
@@ -58,7 +55,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
       } else {
-        console.log("No token found in localStorage.");
         setIsAuthenticated(false);
         setUser(null);
         setToken(null);
@@ -80,9 +76,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     setLoading(true);
-    console.log("Logging out user.");
     try {
-      console.log("Backend logout call skipped/successful (if implemented).");
+      // Backend logout call logic was here or intended here
     } catch (error) {
         console.error('Backend logout failed:', error);
     } finally {
@@ -93,7 +88,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (api.defaults.headers.common['Authorization']) {
             delete api.defaults.headers.common['Authorization'];
         }
-        console.log("Token removed, state reset.");
         setLoading(false);
         router.push('/login');
     }
@@ -101,9 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const handleAuthError = (event: CustomEvent) => {
-      console.log('Auth error event received:', event.detail);
       if (event.detail?.type === 'token-expired') {
-        console.log('Token expired, logging out...');
         logout(); // Call the logout function
       }
     };
@@ -111,7 +103,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.addEventListener('auth-error', handleAuthError as EventListener);
 
     return () => {
-      console.log('Removing auth-error event listener.');
       window.removeEventListener('auth-error', handleAuthError as EventListener);
     };
   }, [logout]);
@@ -119,14 +110,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (username: string, password: string) => {
     setLoading(true);
     try {
-      console.log(`Attempting login for user: ${username}`);
       const { access_token: receivedToken, user: loggedInUser } = await loginUser({ username, password });
 
       localStorage.setItem('authToken', receivedToken);
       setToken(receivedToken);
       setUser(loggedInUser);
       setIsAuthenticated(true);
-      console.log("Login successful, token stored.");
 
       const returnUrl = (router.query.returnUrl as string) || '/';
       router.push(returnUrl);
@@ -146,17 +135,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signup = async (username: string, password: string) => {
     setLoading(true);
     try {
-      console.log(`Attempting to register user: ${username}`);
 
       const { access_token: receivedToken, user: loggedInUser } = await registerUser({ username, password });
-
-      console.log("Registration successful, automatically logging in.");
 
       localStorage.setItem('authToken', receivedToken);
       setToken(receivedToken);
       setUser(loggedInUser);
       setIsAuthenticated(true);
-      console.log("Registration and auto-login successful, token stored.");
 
       router.push('/');
 
@@ -174,7 +159,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshChatList = () => {
     if (refreshChatListCallback) {
-      console.log("AuthContext: refreshChatList called, invoking callback.");
       refreshChatListCallback();
     } else {
       console.warn('AuthContext: refreshChatList called, but no callback is set from MainLayout.');
@@ -183,7 +167,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const updateUserProfile = (updatedUser: User) => {
     setUser(updatedUser);
-    console.log("AuthContext: User profile updated.", updatedUser);
   };
 
   const setRefreshChatListCallback = (callback: (() => void) | null) => {

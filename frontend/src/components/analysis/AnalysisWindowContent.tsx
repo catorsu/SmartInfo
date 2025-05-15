@@ -1,17 +1,16 @@
-// frontend/src/components/analysis/AnalysisWindowContent.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Typography, Spin, Alert, Space, Divider, Empty, Tooltip, Button } from 'antd';
 import { LinkOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { NewsItem } from '@/utils/types'; // Assuming NewsItem might still be fetched for metadata
 import * as newsService from '@/services/newsService';
 import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler';
-import analysisStreamManager from '@/streaming/AnalysisStreamManager'; // IMPORT THE NEW MANAGER
+import analysisStreamManager from '@/streaming/AnalysisStreamManager';
 
 const { Title, Text, Paragraph } = Typography;
 
 interface AnalysisWindowContentProps {
   newsItemId: number;
-  newsItemTitle?: string; // Optional: If title is passed from parent
+  newsItemTitle?: string;
   newsItemDate?: string;
   newsItemSourceName?: string;
   newsItemUrl?: string;
@@ -33,7 +32,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 }) => {
   // State for news item details (if not passed as props or to supplement)
   const [fetchedNewsItem, setFetchedNewsItem] = useState<NewsItem | null>(null);
-  const [isItemLoading, setIsItemLoading] = useState<boolean>(true); // For loading the news item itself
+  const [isItemLoading, setIsItemLoading] = useState<boolean>(true);
   const [itemError, setItemError] = useState<string | null>(null);
 
   // State for analysis stream, driven by the manager
@@ -57,7 +56,6 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
     isComplete: boolean;
     error: string | null;
   }) => {
-    // console.log(`[AnalysisWindowContent] Received manager update for ${newsItemId}:`, newState);
     setAnalysisContent(newState.content);
     setIsStreaming(newState.isStreaming);
     setIsComplete(newState.isComplete);
@@ -75,7 +73,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
         if (!newsItemId) return;
         setIsItemLoading(true);
         setItemError(null);
-        setFetchedNewsItem(null); // Reset
+        setFetchedNewsItem(null);
 
         // Reset stream states as well, as they are tied to newsItemId
         setAnalysisContent('');
@@ -115,13 +113,11 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
         return;
     }
 
-    // Subscribe to the stream manager for this news item
     analysisStreamManager.subscribe(newsItemId, handleManagerStateUpdate);
 
     // Get initial state from manager (e.g., if stream was already active from another component/tab)
     const initialState = analysisStreamManager.getStreamStateSnapshot(newsItemId);
     if (initialState) {
-        // console.log(`[AnalysisWindowContent] Initial state from manager for ${newsItemId}:`, initialState);
         handleManagerStateUpdate(initialState);
     }
 
@@ -130,15 +126,12 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
     if (startAnalysisImmediately) {
         const currentSnapshot = analysisStreamManager.getStreamStateSnapshot(newsItemId);
         // Ensure shouldInitiate correctly reflects the need to start afresh. 
-        // Original: const shouldInitiate = !currentSnapshot || (!currentSnapshot.isStreaming && currentSnapshot.isComplete);
         // Let's refine to be more explicit about restarting based on startAnalysisImmediately if it was previously complete.
         const shouldReallyInitiate = !currentSnapshot || // No stream ever existed
                                   (!currentSnapshot.isStreaming && currentSnapshot.isComplete) || // Was complete, startAnalysisImmediately implies we want it fresh
                                   (currentSnapshot.error); // Had an error, try again
 
         if (shouldReallyInitiate && (!currentSnapshot || !currentSnapshot.isStreaming)) { // Only initiate if not already streaming for this item
-            // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true. Initiating stream (forceRestart=false).`);
-            
             // Explicitly reset local UI state for immediate feedback
             setAnalysisContent('');
             setIsStreaming(true);
@@ -147,18 +140,15 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
             
             analysisStreamManager.initiateStream(newsItemId, false); // false = don't force if already active from another source/tab
         } else if (currentSnapshot && currentSnapshot.isStreaming) {
-            // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true, but stream already active. Component will display it.`);
             // State is already managed by the subscription, ensure UI reflects current stream
             handleManagerStateUpdate(currentSnapshot); 
         } else if (currentSnapshot && !currentSnapshot.isStreaming && !currentSnapshot.isComplete && !currentSnapshot.error) {
-             // console.log(`[AnalysisWindowContent] ${newsItemId}: startAnalysisImmediately=true, stream exists but not active, not complete, no error (e.g. initial empty state). Initiating stream.`);
             setAnalysisContent('');
             setIsStreaming(true);
             setIsComplete(false);
             setStreamError(null);
             analysisStreamManager.initiateStream(newsItemId, false);
         }
-        // The existing else if for fetchedNewsItem?.analysis can remain as is.
     } else if (fetchedNewsItem?.analysis && (!initialState || !initialState.content) && !initialState?.isStreaming) {
         // If not starting immediately, but fetched item has analysis, and manager has no content/stream for it,
         // set the analysis content from fetched item.
@@ -170,7 +160,6 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
     // Cleanup on unmount or when newsItemId changes
     return () => {
-      // console.log(`[AnalysisWindowContent] Unsubscribing for newsItemId ${newsItemId}`);
       analysisStreamManager.unsubscribe(newsItemId, handleManagerStateUpdate);
     };
   }, [newsItemId, startAnalysisImmediately, handleManagerStateUpdate, isItemLoading, fetchedNewsItem]); // Added fetchedNewsItem to deps
@@ -178,7 +167,6 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
   const handleForceAnalysis = () => {
     if (!newsItemId) return;
-    // console.log(`[AnalysisWindowContent] Forcing analysis for newsItemId ${newsItemId}`);
     setAnalysisContent(''); 
     setIsStreaming(true);
     setIsComplete(false);
@@ -187,7 +175,6 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
     analysisStreamManager.initiateStream(newsItemId, true); // true for forceRestart
   };
 
-  // Combined loading state: true if item is loading
   const showInitialLoadingSpinner = isItemLoading;
 
   if (showInitialLoadingSpinner && !itemError) {
@@ -261,7 +248,6 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
                   type="text"
                   icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
                   onClick={handleForceAnalysis}
-                  /* loading prop removed */
                   style={{ padding: '0 4px', color: 'var(--accent-color)', marginLeft: '8px' }}
                   size="small"
                 />

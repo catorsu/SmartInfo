@@ -39,9 +39,7 @@ import { ApiKey, NewsCategory, NewsSource } from '@/utils/types';
 import * as settingsService from '@/services/settingsService';
 import * as newsService from '@/services/newsService';
 import * as authService from '@/services/authService';
-// Removed MainLayout import
 import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler';
-// Removed withAuth import
 import { useAuth } from '@/context/AuthContext';
 
 const { Title, Text, Paragraph } = Typography;
@@ -57,7 +55,6 @@ interface ApiKeyFormValues {
   description?: string;
 }
 
-// Renamed component
 const SettingsContent: React.FC = () => {
   const { user, logout, loading: authLoading, updateUserProfile } = useAuth();
   const [settings, setSettings] = useState<Record<string, any>>({});
@@ -556,9 +553,8 @@ const SettingsContent: React.FC = () => {
     }
   };
 
-  // Removed MainLayout wrapper
   return (
-    <div> {/* Changed from MainLayout to a simple div or fragment */}
+    <div>
       <Row justify="center" style={{ width: '100%' }}>
         <Col xs={24} sm={24} md={24} lg={23} xl={22}>
           <Title level={2} style={{ textAlign: 'center', marginBottom: '24px' }}>System Settings</Title>
@@ -1013,5 +1009,4 @@ const SettingsContent: React.FC = () => {
   );
 };
 
-// Removed withAuth export
-export default SettingsContent; // Export the new component
+export default SettingsContent;

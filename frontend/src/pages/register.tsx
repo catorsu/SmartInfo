@@ -41,7 +41,6 @@ const RegisterPage: React.FC = () => {
     };
 
     const onFinishFailed = (errorInfo: any) => {
-        console.log('Form validation failed:', errorInfo);
         setError('请填写所有必填字段');
     };
 

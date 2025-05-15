@@ -29,9 +29,8 @@ export const getChat = async (chatId: number): Promise<Chat | null> => {
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(`ChatService: Chat with ID ${chatId} not found (404).`);
-      return null; // Return null for not found
+      return null;
     }
-    // Re-throw other errors (network, 5xx, etc.)
     console.error(`ChatService: Error fetching chat ${chatId}:`, error);
     throw error;
   }
@@ -64,9 +63,8 @@ export const getMessage = async (messageId: number): Promise<Message | null> => 
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(`ChatService: Message with ID ${messageId} not found (404).`);
-      return null; // Return null for not found
+      return null;
     }
-    // Re-throw other errors (network, 5xx, etc.)
     console.error(`ChatService: Error fetching message ${messageId}:`, error);
     throw error;
   }

@@ -92,7 +92,6 @@ const ChatPage: React.FC = () => {
       const chatIdNum = parseInt(currentChatId);
 
       if (!isNaN(chatIdNum)) {
-        console.log(`Processing initial message for chat ${currentChatId}: "${initialMessageContent}" (Ref Guard)`);
         initialMessageSentRef.current = true; 
         setIsSendingInitial(true);
 
@@ -103,16 +102,13 @@ const ChatPage: React.FC = () => {
               sender: 'user',
               content: initialMessageContent
             });
-            console.log("Initial user message created.");
 
             await chatService.askQuestion({
               chat_id: chatIdNum,
               content: initialMessageContent,
             });
-            console.log("Initial question sent to LLM.");
 
             await loadChat(chatIdNum);
-            console.log("Chat messages refreshed after initial message.");
 
           } catch (error) {
             console.error('Failed to send initial message or get response:', error);
@@ -122,7 +118,6 @@ const ChatPage: React.FC = () => {
                 router.replace(`/chat/${currentChatId}`, undefined, { shallow: true });
             }
             setIsSendingInitial(false);
-            console.log("Initial message processing finished.");
           }
         };
         sendInitialMessageAsync();

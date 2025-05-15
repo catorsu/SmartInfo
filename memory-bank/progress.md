@@ -1,4 +1,4 @@
-# Project Progress: SmartInfo (Version 1.5 - Plan P001 Completed)
+# Project Progress: SmartInfo (Version 1.6 - Plan P008 Completed)
 
 ## 1. What Works (Based on Review of Existing Code/Documentation as of May 13, 2025)
 This section reflects the *understood implemented functionalities* of the existing SmartInfo project, now documented in the initialized Memory Bank.
@@ -28,7 +28,8 @@ This section reflects the *understood implemented functionalities* of the existi
 *   **Chat Interface:** Chat functionalities are implemented in `chat.tsx` (default view/new chat), `chat/[id].tsx` (existing chat), and `ChatInputBar.tsx`.
 *   **Analysis Display:** `AnalysisModal.tsx` and `AnalysisWindowContent.tsx` are used to display LLM-generated analysis for news items. (Flow updated by Plan P001_V1.0).
 *   **Settings Management:** `SettingsContent.tsx` (displayed in a modal) allows users to manage API keys, news sources, categories, and account settings (username/password).
-*   **Floating Action Buttons (FABs):** Implemented in `MainLayout.tsx` for \"Get News\", \"View Progress\", and \"Settings\".
+*   **Floating Action Buttons (FABs):** Implemented in `MainLayout.tsx` for "Get News", "View Progress", and "Settings".
+*   **Frontend Comments Streamlined:** Code comments in `frontend/src` have been reviewed and streamlined for clarity and value as per Plan P008_V1.0.
 
 ## 2. What's Left to Build/Verify (Ongoing/Future Work based on current understanding)
 *   **Comprehensive End-to-End Testing:** Thorough testing of all user scenarios across the full stack.
@@ -40,34 +41,42 @@ This section reflects the *understood implemented functionalities* of the existi
 *   **Deployment Strategy & CI/CD:** Planning and implementation for staging/production environments.
 *   **User Documentation/Guides:** Creating materials for end-users.
 *   **Frontend State Management for FABs:** Ensuring seamless interaction between FABs in `MainLayout.tsx` and the modals/drawers they control.
+*   **Manual Review of Skipped Comments:** Some specific comments in `AnalysisWindowContent.tsx`, `MainLayout.tsx`, `settingsService.ts`, `index.tsx`, and `types.ts` could not be automatically removed and require manual review.
 
-## 3. Current Status (as of May 16, 2025)
+## 3. Current Status (as of May 15, 2025)
 *   **Memory Bank Initialized:** The Memory Bank has been successfully initialized (May 13, 2025) to document and baseline the existing SmartInfo project.
 *   **Project State:** The SmartInfo project is an existing, developed application.
-*   **Plan P001_V1.0 Completed:** Plan \"Update Analysis Page Workflow\" was completed on May 14, 2025. This involved refactoring the analysis display to prevent auto-streaming and adding a manual trigger, improving user control.
+*   **Plan P001_V1.0 Completed:** Plan "Update Analysis Page Workflow" was completed on May 14, 2025. This involved refactoring the analysis display to prevent auto-streaming and adding a manual trigger, improving user control.
 *   **P002 (EXAMPLE):** *[Example]* Plan P002 This is an example description for a new implementation plan.
-*   **Plan P007_V1.0 Completed and Summarized:** Plan \"Implement Global Frontend Stream Management for Analysis Resilience and Uniqueness\" was completed and summarized on May 16, 2025. This involved creating a global stream manager and refactoring analysis display components.
+*   **Plan P007_V1.0 Completed and Summarized:** Plan "Implement Global Frontend Stream Management for Analysis Resilience and Uniqueness" was completed and summarized on May 16, 2025. This involved creating a global stream manager and refactoring analysis display components.
+*   **Plan P008_V1.0 Completed:** Plan "Streamline Frontend Code Comments" was completed on May 15, 2025. Frontend code comments have been streamlined.
 
 ## 4. Known Issues (To Be Populated from Issue Trackers / Further Review)
-*   *(This section should be updated based on actual known issues in the existing project. For now, it's a placeholder.)*
-*   Example: \"The news fetching progress bar in the drawer sometimes doesn't update correctly for sources processed very quickly.\"
-*   Example: \"Frontend: The filter toggle FAB sometimes overlaps with other UI elements on very small screens.\"
+*   *(This section should be updated based on actual known issues in the existing project. For now, it's a placeholder.)*\n
+*   Example: "The news fetching progress bar in the drawer sometimes doesn't update correctly for sources processed very quickly."\n
+*   Example: "Frontend: The filter toggle FAB sometimes overlaps with other UI elements on very small screens."\n
+*   **Frontend:** A few specific comments in `AnalysisWindowContent.tsx`, `MainLayout.tsx`, `settingsService.ts`, `index.tsx`, and `types.ts` could not be automatically removed during comment streamlining and require manual inspection and removal.
 
 ## 5. Evolution of Project Decisions (To Be Populated Based on Project History)
-*   **May 13, 2025:** Decision to adopt and initialize the Memory Bank system for ongoing project knowledge management and planning for the existing SmartInfo project. (Completed)
-*   **May 14, 2025:** Plan P001_V1.0 \"Update Analysis Page Workflow\" successfully executed and summarized.
-*   **May 16, 2025:** Plan P007_V1.0 "Implement Global Frontend Stream Management" successfully executed and summarized. This introduced `AnalysisStreamManager.ts` and refactored `AnalysisWindowContent.tsx` for robust frontend stream handling.
+*   **May 13, 2025:** Decision to adopt and initialize the Memory Bank system for ongoing project knowledge management and planning for the existing SmartInfo project. (Completed)\n
+*   **May 14, 2025:** Plan P001_V1.0 "Update Analysis Page Workflow" successfully executed and summarized.\n
+*   **May 16, 2025:** Plan P007_V1.0 "Implement Global Frontend Stream Management" successfully executed and summarized. This introduced `AnalysisStreamManager.ts` and refactored `AnalysisWindowContent.tsx` for robust frontend stream handling.\n
+*   **May 15, 2025:** Plan P008_V1.0 "Streamline Frontend Code Comments" successfully executed. Frontend comments have been streamlined to focus on "why" and remove redundant logs/comments.\n
 
 ## 6. Implementation Plans
-*   **P001_V1.0: Update Analysis Page Workflow** (Version 1.0, Status: Completed and Summarized - May 14, 2025)
-    *   **Objective:** Modified the news analysis page to prevent automatic analysis initiation. Added an \"Analyze\" button in the header metadata. Refined content area for better user prompts.
-    *   **Outcome:** Enhanced user control over analysis initiation and clearer UI feedback.
-    *   **Link:** `./plans/P001_V1.0_UpdateAnalysisPageWorkflow.md` (Contains summary)
-*   **P002 (EXAMPLE): Example Plan Title** (Version 1.0, Status: Example - Created May 15, 2025)
-    *   **Goal:** *[Example]* This is an example goal for a new implementation plan.
-    *   **Note:** *[Example]* This section can contain additional notes or context about the plan. For instance, it might reference other plans or specific modules.
-    *   **Link:** *[Example]* `./plans/P003_V1.0_Example_Plan_Details.md`
-*   **P007_V1.0: Implement Global Frontend Stream Management for Analysis Resilience and Uniqueness** (Version 1.0, Status: Completed and Summarized - May 16, 2025)
-    *   **Objective:** To implement a global frontend stream management system (`AnalysisStreamManager.ts`) for news analysis, ensuring stream uniqueness per news item and resilience to UI navigation.
-    *   **Outcome:** Successfully created `AnalysisStreamManager.ts` and refactored `AnalysisWindowContent.tsx` to use it. This centralizes stream logic, prevents duplicate streams, and allows users to navigate away and return to an ongoing or completed analysis stream seamlessly. Initial bugs related to service imports and stream handling logic were fixed during implementation.
-    *   **Link:** `./plans/P007_V1.0_Global_Stream_Management_for_Analysis.md` (Contains summary)
+*   **P001_V1.0: Update Analysis Page Workflow** (Version 1.0, Status: Completed and Summarized - May 14, 2025)\n
+    *   **Objective:** Modified the news analysis page to prevent automatic analysis initiation. Added an "Analyze" button in the header metadata. Refined content area for better user prompts.\n
+    *   **Outcome:** Enhanced user control over analysis initiation and clearer UI feedback.\n
+    *   **Link:** `./plans/P001_V1.0_UpdateAnalysisPageWorkflow.md` (Contains summary)\n
+*   **P002 (EXAMPLE): Example Plan Title** (Version 1.0, Status: Example - Created May 15, 2025)\n
+    *   **Goal:** *[Example]* This is an example goal for a new implementation plan.\n
+    *   **Note:** *[Example]* This section can contain additional notes or context about the plan. For instance, it might reference other plans or specific modules.\n
+    *   **Link:** *[Example]* `./plans/P003_V1.0_Example_Plan_Details.md`\n
+*   **P007_V1.0: Implement Global Frontend Stream Management for Analysis Resilience and Uniqueness** (Version 1.0, Status: Completed and Summarized - May 16, 2025)\n
+    *   **Objective:** To implement a global frontend stream management system (`AnalysisStreamManager.ts`) for news analysis, ensuring stream uniqueness per news item and resilience to UI navigation.\n
+    *   **Outcome:** Successfully created `AnalysisStreamManager.ts` and refactored `AnalysisWindowContent.tsx` to use it. This centralizes stream logic, prevents duplicate streams, and allows users to navigate away and return to an ongoing or completed analysis stream seamlessly. Initial bugs related to service imports and stream handling logic were fixed during implementation.\n
+    *   **Link:** `./plans/P007_V1.0_Global_Stream_Management_for_Analysis.md` (Contains summary)\n
+*   **P008_V1.0: Streamline Frontend Code Comments** (Version 1.0, Status: Completed - May 15, 2025)\n
+    *   **Objective:** To refactor comments in the `frontend/src` directory to align with Clean Code principles, focusing on "why" over "what", and improving code readability and maintainability.\n
+    *   **Outcome:** Systematically reviewed and removed numerous verbose debug logs (`console.log`) and historical/refactoring comments across the `frontend/src` directory (excluding `styles/`). Kept value-adding comments, error logs, and essential TODOs. Noted specific comments that could not be automatically removed.\n
+    *   **Link:** `./plans/P008_V1.0_Streamline_Frontend_Comments.md` (Contains summary)\n

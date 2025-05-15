@@ -1,4 +1,3 @@
-// frontend/src/streaming/AnalysisStreamManager.ts
 import * as newsService from '@/services/newsService';
 
 interface StreamState {
@@ -33,7 +32,6 @@ class AnalysisStreamManager {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log(`[AnalysisStreamManager] Stream completed successfully for newsItemId ${newsItemId}`);
           state.isStreaming = false;
           state.isComplete = true;
           state.reader = null; // Release reader
@@ -42,7 +40,6 @@ class AnalysisStreamManager {
         }
         const chunk = decoder.decode(value, { stream: true }); // stream: true is important for multi-byte chars
         state.content += chunk;
-        // console.log(`[AnalysisStreamManager] Received chunk for ${newsItemId}:`, chunk.length, "chars");
         this._notifySubscribers(newsItemId);
       }
     } catch (error: any) {
@@ -69,7 +66,6 @@ class AnalysisStreamManager {
     if (!state) return;
 
     const { reader, subscribers, ...stateUpdate } = state;
-    // console.log(`[AnalysisStreamManager] Notifying ${subscribers.size} subscribers for newsItemId ${newsItemId} with isStreaming: ${stateUpdate.isStreaming}, isComplete: ${stateUpdate.isComplete}`);
     subscribers.forEach(callback => {
       try {
         callback(stateUpdate);

@@ -15,7 +15,6 @@ const LoginPage: React.FC = () => {
         setError(null);
         try {
             await login(values.username, values.password);
-            console.log('Login attempt finished.');
         } catch (err: any) {
             console.error('Login page caught error:', err);
             setError(err.message || 'Login failed. Please check your credentials.');
@@ -24,7 +23,6 @@ const LoginPage: React.FC = () => {
     };
 
     const onFinishFailed = (errorInfo: any) => {
-        console.log('Failed:', errorInfo);
         setError('Please fill in all required fields.');
     };
 

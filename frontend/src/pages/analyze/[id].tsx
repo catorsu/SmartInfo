@@ -8,7 +8,7 @@ const { Title } = Typography;
 
 const AnalyzePage: React.FC = () => {
   const router = useRouter();
-  const { id, initiate } = router.query; // Destructure initiate
+  const { id, initiate } = router.query;
 
   const newsItemId = typeof id === 'string' ? parseInt(id, 10) : undefined;
   const [shouldStartAnalysis, setShouldStartAnalysis] = useState(false);
@@ -17,7 +17,7 @@ const AnalyzePage: React.FC = () => {
     if (router.isReady) { // Ensure query params are available
       setShouldStartAnalysis(initiate === 'true');
     }
-  }, [router.isReady, initiate]); // Depend on router.isReady and initiate
+  }, [router.isReady, initiate]);
 
   if (router.isReady && newsItemId === undefined) {
     return (
@@ -37,7 +37,7 @@ const AnalyzePage: React.FC = () => {
       {newsItemId !== undefined ? (
         <AnalysisWindowContent
                   newsItemId={newsItemId}
-                  startAnalysisImmediately={shouldStartAnalysis} // Pass the new prop
+                  startAnalysisImmediately={shouldStartAnalysis}
                 />
       ) : (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>

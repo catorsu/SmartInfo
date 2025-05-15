@@ -42,10 +42,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       console.warn('401 Unauthorized error detected.');
       if (error.config && error.config.url !== '/api/auth/token') {
-        console.log('401 on a non-login endpoint, dispatching auth-error event.');
         window.dispatchEvent(new CustomEvent('auth-error', { detail: { type: 'token-expired' } }));
       } else {
-        console.log('401 on login endpoint, not dispatching auth-error.');
+        // 401 on login endpoint, auth-error event not dispatched
       }
     }
 

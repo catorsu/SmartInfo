@@ -61,7 +61,6 @@ export const logoutUser = async (): Promise<void> => {
         // TODO: Replace '/api/auth/logout' with the actual backend endpoint if needed
         // This endpoint might not exist or might not be required depending on backend implementation
         // await api.post('/api/auth/logout');
-        console.log("Logout request potentially sent to /api/auth/logout (if implemented).");
     } catch (error) {
         throw handleApiError(error, 'Logout failed');
     }

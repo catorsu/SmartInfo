@@ -26,8 +26,7 @@ import {
   Tooltip,
   DatePicker, // Keep if you plan to use it for history date selection
   Badge,
-  FloatButton // Added FloatButton
-  // Removed Affix as we'll use direct sticky styling
+  FloatButton
 } from 'antd';
 import {
   SearchOutlined,
@@ -46,8 +45,8 @@ import {
   HistoryOutlined,
   DeleteOutlined,
   ClockCircleOutlined,
-  FilterOutlined, // Added FilterOutlined
-  AppstoreOutlined // Added for potential FloatButton.Group icon
+  FilterOutlined,
+  AppstoreOutlined
 } from '@ant-design/icons';
 import { NewsItem, NewsCategory, NewsSource, NewsFilterParams, FetchTaskItem, FetchHistoryItem } from '@/utils/types';
 import * as newsService from '@/services/newsService';
@@ -132,7 +131,7 @@ const NewsPage: React.FC = () => {
   const [historicalData, setHistoricalData] = useState<FetchHistoryItem[] | null>(null);
   const [viewingDate, setViewingDate] = useState<'today' | 'history'>('today');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState<dayjs.Dayjs | null>(null);
-  const [isFilterRowVisible, setIsFilterRowVisible] = useState<boolean>(false); // State for filter visibility
+  const [isFilterRowVisible, setIsFilterRowVisible] = useState<boolean>(false);
 
 
   const loadNews = useCallback(async (params: NewsFilterParams) => {
@@ -233,7 +232,6 @@ const NewsPage: React.FC = () => {
 
   const connectWebSocket = useCallback((currentTaskGroupId: string) => {
     if (wsRef.current) {
-      console.log('Closing previous WebSocket connection.');
       wsRef.current.close();
     }
 
@@ -253,16 +251,13 @@ const NewsPage: React.FC = () => {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log(`WebSocket connected for task group ID: ${currentTaskGroupId}`);
         };
 
         ws.onmessage = (event) => {
           try {
               const taskUpdate = JSON.parse(event.data);
-              console.log('Received task update:', taskUpdate);
 
               if (taskUpdate.event === "batch_task_failed") {
-                  console.log(`Batch Celery task ${taskUpdate.task_id} failed in group ${currentTaskGroupId}: ${taskUpdate.message}`);
                   if (taskUpdate.affected_source_ids && Array.isArray(taskUpdate.affected_source_ids)) {
                       setTasksToMonitor(prevTasks => prevTasks.map(task => {
                           if (taskUpdate.affected_source_ids.includes(task.sourceId) && (task.progress ?? 0) < 100) {
@@ -394,9 +389,6 @@ const NewsPage: React.FC = () => {
   }, [sources, setFilteredFetchSources, setSelectedFetchCategory, setSelectedSourceIds, setSelectAllSources, setIsIndeterminate, setIsFetchModalVisible]);
 
   const showTaskDrawer = useCallback(() => {
-    // Assuming fetchTodaysHistory is stable or included in deps if needed
-    // setViewingDate('today'); // If these are part of showing the drawer, include them and their setters in deps
-    // fetchTodaysHistory();
     setIsTaskDrawerVisible(true);
   }, [setIsTaskDrawerVisible]); // Add fetchTodaysHistory, setViewingDate if they are called here
 
@@ -570,7 +562,6 @@ const NewsPage: React.FC = () => {
 
   // Handler for clicking the "Saved Items" badge
   const handleTaskBadgeClick = (sourceId: number, fetchDate: string) => {
-    console.log(`Badge clicked for source ${sourceId} on date ${fetchDate}`);
     setFilters(prevFilters => ({
       ...prevFilters,
       source_id: sourceId,
@@ -588,7 +579,6 @@ const NewsPage: React.FC = () => {
 
   return (
     <div>
-      {/* Filter Toggle FAB */}
       <FloatButton
         icon={<FilterOutlined />}
         tooltip="Toggle Filters"
@@ -656,7 +646,6 @@ const NewsPage: React.FC = () => {
                     allowClear
                   />
                 </Col>
-                {/* Get News and View Progress buttons were moved to FABs */}
               </Row>
             </Col>
           </Row>

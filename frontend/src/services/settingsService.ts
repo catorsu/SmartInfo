@@ -39,9 +39,8 @@ export const getApiKey = async (apiKeyId: number): Promise<ApiKey | null> => {
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(`SettingsService: API Key with ID ${apiKeyId} not found (404).`);
-      return null; // Return null for not found
+      return null;
     }
-    // Re-throw other errors (network, 5xx, etc.)
     console.error(`SettingsService: Error fetching API Key ${apiKeyId}:`, error);
     throw error;
   }

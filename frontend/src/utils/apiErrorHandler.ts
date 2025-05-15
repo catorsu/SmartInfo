@@ -10,7 +10,7 @@ export const extractErrorMessage = (error: unknown): { type: string, message: st
     const axiosError = error as AxiosError<any>; // Allow any type for data
     const status = axiosError.response?.status;
     const data = axiosError.response?.data;
-    let messageText = axiosError.message; // Default to Axios message
+    let messageText = axiosError.message;
 
     if (status === 404) {
       return { type: 'notFound', message: data?.detail || 'Resource not found', status };
@@ -19,9 +19,9 @@ export const extractErrorMessage = (error: unknown): { type: string, message: st
       return { type: 'forbidden', message: data?.detail || 'Access forbidden', status };
     }
     if (data?.detail) {
-      messageText = data.detail; // Use detail from backend if available
+      messageText = data.detail;
     } else if (typeof data === 'string') {
-      messageText = data; // Use raw string data if available
+      messageText = data;
     }
 
     // For other Axios errors (400, 500, network, etc.)
@@ -67,10 +67,8 @@ export const withErrorHandling = async <T>(
     const errorDetails = extractErrorMessage(error);
 
     if (errorHandler) {
-      // If a custom handler is provided, let it handle the error
-      errorHandler(errorDetails); // Pass the structured error details
+      errorHandler(errorDetails);
     } else {
-      // Otherwise, use the default global handler
       handleApiError(error, customErrorMessage);
     }
 
@@ -85,7 +83,7 @@ export const withErrorHandling = async <T>(
     // For simplicity here, let's assume if a custom handler is provided, it fully handles the error and we don't re-throw here.
     // If no custom handler, handleApiError shows the message, and we re-throw for component catch blocks.
     if (!errorHandler) {
-      throw error; // Re-throw the original error object
+      throw error;
     }
 
     return null; // If custom handler was used, assume it handled it and return null
