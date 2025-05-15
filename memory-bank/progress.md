@@ -79,4 +79,14 @@ This section reflects the *understood implemented functionalities* of the existi
 *   **P008_V1.0: Streamline Frontend Code Comments** (Version 1.0, Status: Completed - May 15, 2025)\n
     *   **Objective:** To refactor comments in the `frontend/src` directory to align with Clean Code principles, focusing on "why" over "what", and improving code readability and maintainability.\n
     *   **Outcome:** Systematically reviewed and removed numerous verbose debug logs (`console.log`) and historical/refactoring comments across the `frontend/src` directory (excluding `styles/`). Kept value-adding comments, error logs, and essential TODOs. Noted specific comments that could not be automatically removed.\n
-    *   **Link:** `./plans/P008_V1.0_Streamline_Frontend_Comments.md` (Contains summary)\n
+    *   **Link:** `./plans/P008_V1.0_Streamline_Frontend_Comments.md` (Contains summary)
+
+*   **P010_V1.0: Correct and Refine Chat Page UI and Input Bar** (Version 1.0, Status: Completed and Summarized)
+    *   **Objective:** To ensure the chat page UI correctly implements the intended layout: centered and constrained content area, input bar with internal buttons, and adjusted spacing.
+    *   **Outcome:** Verified and adjusted styles in `ChatInputBar.tsx`, `ChatInputBar.module.css`, `MainLayout.tsx`, and `chat/[id].tsx`. The full visual realization became apparent after Plan P011 integrated the `ChatInputBar` component.
+    *   **Link:** `./plans/P010_V1.0_Correct_Chat_UI.md` (Contains summary)
+
+*   **P011_V1.0: Refactor Chat Page to Use Common ChatInputBar Component** (Version 1.0, Status: Completed and Summarized)
+    *   **Objective:** To replace the custom `TextArea` and `Button` in `frontend/src/pages/chat/[id].tsx` with the shared `ChatInputBar` component.
+    *   **Outcome:** Successfully refactored `frontend/src/pages/chat/[id].tsx` to use the `ChatInputBar` component, resulting in a consistent and visually correct message input interface.
+    *   **Link:** `./plans/P011_V1.0_Use_ChatInputBar_in_ChatID_Page.md` (Contains summary)

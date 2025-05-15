@@ -21,12 +21,21 @@
 *   After P008, review and continue/begin implementation of Plan P005_V1.0 (if still the priority).
 
 ## 4. Active Plans
-*   **P008: Streamline Frontend Comments** (Version 1.0, Status: Active - Created May 15, 2025)
-    *   **Goal:** Review and remove redundant or unnecessary comments from frontend TypeScript/TSX files to improve code clarity and maintainability.
-    *   **Link:** `./plans/P008_V1.0_Streamline_Frontend_Comments.md`
+*   **P011: Refactor Chat Page to Use Common ChatInputBar Component** (Version 1.0, Status: Active)
+    *   **Goal:** To replace the custom `TextArea` and `Button` in `frontend/src/pages/chat/[id].tsx` with the shared `ChatInputBar` component.
+    *   **Link:** `./plans/P011_V1.0_Use_ChatInputBar_in_ChatID_Page.md`
+*   **P010: Correct and Refine Chat Page UI and Input Bar** (Version 1.0, Status: Completed - Functionality to be made visible by P011)
+    *   **Goal:** To ensure the chat page UI correctly implements the intended layout: centered and constrained content area, input bar with internal buttons, and adjusted spacing.
+    *   **Link:** `./plans/P010_V1.0_Correct_Chat_UI.md`
+*   **P009: Refactor Chat Page UI Layout and Input Bar** (Version 1.0, Status: Superseded by P010 - visual outcome not fully achieved)
+    *   **Goal:** To update the chat page UI to more closely resemble modern chat interfaces like Gemini and Tencent Yuanbao, improving visual appeal and usability.
+    *   **Link:** `./plans/P009_V1.0_Refactor_Chat_Page_UI.md`
 *   **P005: Connect FABs to Page-Specific Modals via Context** (Version 1.0, Status: Active - Created May 15, 2025)
     *   **Goal:** Enable Floating Action Buttons (FABs) in `MainLayout.tsx` to correctly trigger modals and drawers managed within specific page components like `NewsPage`.
     *   **Link:** `./plans/P005_V1.0_Connect_FAB_to_Page_Modals.md`
+*   **P008: Streamline Frontend Comments** (Version 1.0, Status: Completed and Summarized - Created May 15, 2025)
+    *   **Goal:** Review and remove redundant or unnecessary comments from frontend TypeScript/TSX files to improve code clarity and maintainability.
+    *   **Link:** `./plans/P008_V1.0_Streamline_Frontend_Comments.md`
 
 ## 5. Important Patterns & Preferences (Observed from Existing Project)
 *   **User-Centric Data:** Most data entities are clearly tied to a `user_id`.

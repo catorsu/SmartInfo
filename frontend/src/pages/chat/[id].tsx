@@ -17,6 +17,7 @@ import { Chat, Message, MessageCreate } from '@/utils/types';
 import * as chatService from '@/services/chatService';
 import { extractErrorMessage } from '@/utils/apiErrorHandler';
 import withAuth from '@/components/auth/withAuth';
+import ChatInputBar from '@/components/Chat/ChatInputBar';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -33,7 +34,6 @@ const ChatPage: React.FC = () => {
   const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textAreaRef = useRef<any>(null);
   const initialMessageSentRef = useRef<boolean>(false); 
 
   const loadChat = useCallback(async (chatId: number) => {
@@ -153,9 +153,8 @@ const ChatPage: React.FC = () => {
       const messageContent = newMessage;
       setNewMessage('');
 
-      if (textAreaRef.current) {
-        textAreaRef.current.focus();
-      }
+      // The ChatInputBar component will manage its own internal focus if needed.
+      // Focus logic previously tied to textAreaRef is removed.
 
       await chatService.createMessage(userMessageData);
 
@@ -272,7 +271,7 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div style={{ height: 'calc(100vh - 110px)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', maxWidth: '750px', margin: '0 auto', maxHeight: '85vh', display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 4px' }}>
         {messages.length === 0 ? (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
@@ -285,35 +284,13 @@ const ChatPage: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ padding: '16px 0', borderTop: '1px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <TextArea
-            ref={textAreaRef}
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message here..."
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            disabled={sending || isSendingInitial}
-            onPressEnter={(e) => {
-              if (!e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            style={{ flex: 1, marginRight: 8, borderRadius: '4px' }}
-          />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSendMessage}
-            loading={sending || isSendingInitial} 
-            disabled={!newMessage.trim() || sending || isSendingInitial}
-            style={{ height: 'auto', minHeight: '32px', borderRadius: '4px' }}
-          />
-        </div>
-        <Text type="secondary" style={{ fontSize: '12px', marginTop: 4, display: 'block', textAlign: 'center' }}>
-          Press Enter to send, Shift+Enter for new line
-        </Text>
+      <div style={{ paddingTop: '16px', paddingBottom: '8px', paddingLeft: 0, paddingRight: 0, borderTop: '1px solid var(--border-color)' }}>
+        <ChatInputBar
+          inputValue={newMessage}
+          onInputChange={setNewMessage}
+          onSendMessage={handleSendMessage}
+          loading={sending || isSendingInitial}
+        />
       </div>
     </div>
   );

@@ -449,7 +449,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       </Sider>
 
       <Layout style={{ marginLeft: collapsed ? 80 : 260, transition: 'margin-left 0.2s' }}>
-        <Content style={{ padding: 24, margin: '0 auto', minHeight: 'calc(100vh - 48px)', maxWidth: '1200px', width: '100%' }}>
+        <Content style={{ padding: 24, margin: '0 auto', minHeight: 'calc(100vh - 48px)', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flexGrow: 1, overflow: 'hidden' }}>
           {children}
         </Content>
       </Layout>

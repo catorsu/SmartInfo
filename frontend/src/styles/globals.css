@@ -120,10 +120,6 @@ a:hover {
 
 .assistant-message-card .ant-card-body {
   background-color: var(--ai-message-bg) !important;
-  /* e.g., tertiary-bg */
-  border: 1px solid var(--border-color) !important;
-  border-radius: 18px 18px 18px 4px !important;
-  /* Assistant bubble shape without avatar */
 }
 
 .assistant-message-card .ant-card-body .ant-typography {
@@ -176,7 +172,7 @@ a:hover {
 .filter-toggle-fab.ant-float-btn .ant-float-btn-body {
   width: 36px !important;
   height: 36px !important;
-  line-height: 36px !important; 
+  line-height: 36px !important;
 }
 
 .filter-toggle-fab.ant-float-btn .ant-float-btn-body .anticon {
@@ -189,27 +185,31 @@ a:hover {
   width: 36px !important;
   height: 36px !important;
 }
+
 .action-fab-group .ant-float-btn .ant-float-btn-body {
   width: 36px !important;
   height: 36px !important;
   line-height: 36px !important;
 }
+
 .action-fab-group .ant-float-btn .ant-float-btn-body .anticon {
   font-size: 16px !important;
   vertical-align: middle;
 }
 
 /* For the main trigger icon of the FloatButton.Group itself */
-.action-fab-group > .ant-float-btn.ant-float-btn-circle:first-child {
+.action-fab-group>.ant-float-btn.ant-float-btn-circle:first-child {
   width: 40px !important;
   height: 40px !important;
 }
-.action-fab-group > .ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body {
+
+.action-fab-group>.ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body {
   width: 40px !important;
   height: 40px !important;
   line-height: 40px !important;
 }
-.action-fab-group > .ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body .anticon {
+
+.action-fab-group>.ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body .anticon {
   font-size: 18px !important;
   vertical-align: middle;
 }
