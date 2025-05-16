@@ -1,4 +1,4 @@
-# Project Progress: SmartInfo (Version 1.6 - Plan P008 Completed)
+# Project Progress: SmartInfo (Version 1.9 - Plan P012_V1.1 Completed)
 
 ## 1. What Works (Based on Review of Existing Code/Documentation as of May 13, 2025)
 This section reflects the *understood implemented functionalities* of the existing SmartInfo project, now documented in the initialized Memory Bank.
@@ -25,7 +25,7 @@ This section reflects the *understood implemented functionalities* of the existi
 *   **UI Layout:** `MainLayout.tsx` provides global navigation and structure, including a Sider for main navigation and chat history.
 *   **API Services:** Axios (`api.ts`) and specific service files (`authService.ts`, `newsService.ts`, `chatService.ts`, `settingsService.ts`) handle communication with the backend.
 *   **News Display & Filtering:** `index.tsx` implements news display, pagination, and filtering by category, source, and search term. It also includes a task drawer for fetch progress.
-*   **Chat Interface:** Chat functionalities are implemented in `chat.tsx` (default view/new chat), `chat/[id].tsx` (existing chat), and `ChatInputBar.tsx`.
+*   **Chat Interface:** Chat functionalities are implemented in `chat.tsx` (default view/new chat), `chat/[id].tsx` (existing chat), and `ChatInputBar.tsx`. (UI being refined by P012)
 *   **Analysis Display:** `AnalysisModal.tsx` and `AnalysisWindowContent.tsx` are used to display LLM-generated analysis for news items. (Flow updated by Plan P001_V1.0).
 *   **Settings Management:** `SettingsContent.tsx` (displayed in a modal) allows users to manage API keys, news sources, categories, and account settings (username/password).
 *   **Floating Action Buttons (FABs):** Implemented in `MainLayout.tsx` for "Get News", "View Progress", and "Settings".
@@ -50,6 +50,8 @@ This section reflects the *understood implemented functionalities* of the existi
 *   **P002 (EXAMPLE):** *[Example]* Plan P002 This is an example description for a new implementation plan.
 *   **Plan P007_V1.0 Completed and Summarized:** Plan "Implement Global Frontend Stream Management for Analysis Resilience and Uniqueness" was completed and summarized on May 16, 2025. This involved creating a global stream manager and refactoring analysis display components.
 *   **Plan P008_V1.0 Completed:** Plan "Streamline Frontend Code Comments" was completed on May 15, 2025. Frontend code comments have been streamlined.
+*   **Plan P010 & P011 Completed and Summarized:** Plans related to Chat UI refactoring and `ChatInputBar` integration are complete.
+*   **Plan P012_V1.1 Completed and Summarized:** Plan "Fix Chat Copy Button Visibility and Positioning" (V1.1) successfully addressed issues from V1.0 regarding copy button hover and text overlap. Chat UI is now refined as per user request.
 
 ## 4. Known Issues (To Be Populated from Issue Trackers / Further Review)
 *   *(This section should be updated based on actual known issues in the existing project. For now, it's a placeholder.)*\n
@@ -61,7 +63,9 @@ This section reflects the *understood implemented functionalities* of the existi
 *   **May 13, 2025:** Decision to adopt and initialize the Memory Bank system for ongoing project knowledge management and planning for the existing SmartInfo project. (Completed)\n
 *   **May 14, 2025:** Plan P001_V1.0 "Update Analysis Page Workflow" successfully executed and summarized.\n
 *   **May 16, 2025:** Plan P007_V1.0 "Implement Global Frontend Stream Management" successfully executed and summarized. This introduced `AnalysisStreamManager.ts` and refactored `AnalysisWindowContent.tsx` for robust frontend stream handling.\n
-*   **May 15, 2025:** Plan P008_V1.0 "Streamline Frontend Code Comments" successfully executed. Frontend comments have been streamlined to focus on "why" and remove redundant logs/comments.\n
+*   **May 15, 2025:** Plan P008_V1.0 "Streamline Frontend Code Comments" successfully executed. Frontend comments have been streamlined to focus on "why" and remove redundant logs/comments.
+*   **May 15, 2025:** Plans P010 & P011 completed, significantly refactoring the Chat UI and standardizing the input mechanism with `ChatInputBar`.
+*   **May 15, 2025:** Plan P012_V1.1 "Fix Chat Copy Button Visibility and Positioning" successfully executed and summarized, correcting UI issues from P012_V1.0 based on validation feedback.\n
 
 ## 6. Implementation Plans
 *   **P001_V1.0: Update Analysis Page Workflow** (Version 1.0, Status: Completed and Summarized - May 14, 2025)\n
@@ -90,3 +94,8 @@ This section reflects the *understood implemented functionalities* of the existi
     *   **Objective:** To replace the custom `TextArea` and `Button` in `frontend/src/pages/chat/[id].tsx` with the shared `ChatInputBar` component.
     *   **Outcome:** Successfully refactored `frontend/src/pages/chat/[id].tsx` to use the `ChatInputBar` component, resulting in a consistent and visually correct message input interface.
     *   **Link:** `./plans/P011_V1.0_Use_ChatInputBar_in_ChatID_Page.md` (Contains summary)
+*   **P012_V1.1: Fix Chat Copy Button Visibility and Positioning** (Version 1.1, Status: Completed and Summarized - May 15, 2025)
+    *   **Objective:** Correct the copy button's hover visibility and its positioning/spacing within chat messages to ensure it functions as intended and does not overlap with text content. (This plan revised P012_V1.0 after initial validation feedback).
+    *   **Outcome:** Successfully adjusted copy button positioning and related card padding in `frontend/src/pages/chat/[id].tsx`. Ensured CSS controlled hover visibility. The chat UI's copy button now works as intended. The input bar styling fixes from P012_V1.0 were also re-confirmed.
+    *   **Supersedes:** P012_V1.0
+    *   **Link:** `./plans/P012_V1.1_Fix_Chat_Copy_Button.md` (Contains summary)

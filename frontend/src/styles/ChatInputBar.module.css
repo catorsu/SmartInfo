@@ -36,6 +36,14 @@
     color: var(--input-placeholder-color) !important;
 }
 
+.chatInputTextArea:hover,
+.chatInputTextArea:focus,
+.chatInputTextArea:focus-within {
+    border-color: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
 .inputButtonsContainer {
     position: absolute;
     bottom: 6px;

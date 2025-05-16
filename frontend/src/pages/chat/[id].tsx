@@ -190,34 +190,51 @@ const ChatPage: React.FC = () => {
       return (
         <div
           key={msg.id}
+          // className="message-row" // Retained for alignment if used
           style={{
             display: 'flex',
             justifyContent: isUser ? 'flex-end' : 'flex-start',
             marginBottom: 12,
           }}
         >
-          <Card
-            className={isUser ? 'user-message-card' : 'assistant-message-card'}
-            style={{ maxWidth: '80%' }}
-            bodyStyle={{ padding: '10px 14px' }}
+          <div
+            className={`message-bubble-container ${isUser ? 'user-message-container' : 'assistant-message-container'}`}
+            style={{
+              position: 'relative',
+              display: 'inline-block', // Keeps bubble tight to content
+            }}
           >
-            <div style={{ flex: 1 }}>
+            <Card
+              className={isUser ? 'user-message-card' : 'assistant-message-card'}
+              style={{ maxWidth: '80%' }} // MaxWidth on card itself is fine
+              bodyStyle={{ padding: '10px 14px 30px 35px' }}
+            >
               <Paragraph style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 0 }}>
                 {msg.content}
               </Paragraph>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                <Tooltip title="Copy message">
-                  <Button
-                    type="text"
-                    icon={<CopyOutlined />}
-                    size="small"
-                    onClick={() => handleCopyMessage(msg.content)}
-                    style={{color: 'var(--text-secondary)', padding: '0 4px'}}
-                  />
-                </Tooltip>
-              </div>
+            </Card>
+            <div
+              className="copy-button-wrapper" // Class for styling via <style jsx>
+              style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '8px',
+                // Opacity & visibility controlled by CSS via class a few lines below
+                transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
+                zIndex: 1,
+              }}
+            >
+              <Tooltip title="Copy message">
+                <Button
+                  type="text"
+                  icon={<CopyOutlined />}
+                  size="small"
+                  onClick={() => handleCopyMessage(msg.content)}
+                  style={{ color: 'var(--text-secondary)', padding: '0 4px' }}
+                />
+              </Tooltip>
             </div>
-          </Card>
+          </div>
         </div>
       );
     });
@@ -271,28 +288,50 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: '750px', margin: '0 auto', maxHeight: '85vh', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 4px' }}>
-        {messages.length === 0 ? (
-          <div style={{ textAlign: 'center', marginTop: 40 }}>
-            <Title level={4}>Start a conversation</Title>
-            <Paragraph>Ask a question or start a conversation with the AI assistant.</Paragraph>
-          </div>
-        ) : (
-          renderMessages()
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+    <>
+      <style jsx>{`
+        .message-bubble-container .copy-button-wrapper {
+          opacity: 0;
+          visibility: hidden;
+        }
+        .message-bubble-container:hover .copy-button-wrapper {
+          opacity: 1;
+          visibility: visible;
+        }
+        /* Optional: if you want different background for user/assistant for the card itself */
+        /* These would typically be in global.css or theme if Ant variables are used */
+        /*
+        .user-message-container .ant-card {
+           background-color: var(--user-message-bg, #e6f7ff);
+        }
+        .assistant-message-container .ant-card {
+           background-color: var(--assistant-message-bg, #f0f0f0);
+        }
+        */
+      `}</style>
+      <div style={{ width: '100%', maxWidth: '750px', margin: '0 auto', maxHeight: '85vh', display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 4px' }}>
+          {messages.length === 0 ? (
+            <div style={{ textAlign: 'center', marginTop: 40 }}>
+              <Title level={4}>Start a conversation</Title>
+              <Paragraph>Ask a question or start a conversation with the AI assistant.</Paragraph>
+            </div>
+          ) : (
+            renderMessages()
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-      <div style={{ paddingTop: '16px', paddingBottom: '8px', paddingLeft: 0, paddingRight: 0, borderTop: '1px solid var(--border-color)' }}>
-        <ChatInputBar
-          inputValue={newMessage}
-          onInputChange={setNewMessage}
-          onSendMessage={handleSendMessage}
-          loading={sending || isSendingInitial}
-        />
+        <div style={{ paddingTop: '16px', paddingBottom: '8px', paddingLeft: 0, paddingRight: 0 }}>
+          <ChatInputBar
+            inputValue={newMessage}
+            onInputChange={setNewMessage}
+            onSendMessage={handleSendMessage}
+            loading={sending || isSendingInitial}
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
