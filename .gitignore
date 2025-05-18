@@ -75,5 +75,4 @@ clear_redis_key.py
 mcptestconfig.json
 .txt
 # docs/memory-bank/
-docs/
 memory-bank/
