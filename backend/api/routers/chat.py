@@ -5,6 +5,7 @@ Handles chat session management, message operations, and interaction with the LL
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Body, status
+from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any, Optional, Annotated
 
 
@@ -342,37 +343,53 @@ async def delete_message(
     return None
 
 
-@router.post("/ask", response_model=ChatAnswer, summary="Ask a question to the LLM")
+@router.post(
+    "/ask",
+    summary="Ask a question to the LLM and stream the response",
+    response_class=StreamingResponse,
+)
 async def ask_question(
     question_data: Question,
     current_user: Annotated[User, Depends(get_current_active_user)],
     chat_service: Annotated[ChatService, Depends(get_chat_service)],
 ):
     """
-    Ask a question to the LLM for the current user.
-
-    If chat_id is provided, it must belong to the user.
-    If no chat_id is provided, a new chat will be created for the user.
+    Ask a question to the LLM for the current user and stream the response.
+    `chat_id` must be provided in the request.
     """
-    try:
+    if question_data.chat_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="chat_id is required for streaming responses.",
+        )
 
-        response = await chat_service.process_question(
+    try:
+        # The service method now returns an AsyncGenerator
+        stream_generator = chat_service.process_question(
             content=question_data.content,
             user=current_user,
-            chat_id=question_data.chat_id,
+            chat_id=question_data.chat_id,  # Pass chat_id directly
         )
-        return response
+        return StreamingResponse(stream_generator, media_type="text/plain")
 
     except ValueError as ve:
         logger.error(f"Validation error during /ask: {str(ve)}")
-
+        # Handle specific errors that might occur before streaming starts
         if "not found or does not belong to user" in str(ve):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(ve))
+        elif "No valid LLM API key found" in str(ve):
+            # This case is now handled by the service yielding an error message,
+            # but if it were to raise before streaming:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
         else:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
-        logger.exception("Error processing question", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while processing your question.",
+        logger.exception("Error processing question for streaming", exc_info=True)
+
+        # This error occurs if the stream itself fails to initiate for reasons other than ValueError
+        async def error_stream():
+            yield f'{{"error": "An error occurred while processing your question: {str(e)}"}}'
+
+        return StreamingResponse(
+            error_stream(), media_type="application/json", status_code=500
         )

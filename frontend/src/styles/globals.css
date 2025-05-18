@@ -31,12 +31,19 @@
 
   /* Chat Bubbles */
   --user-message-bg: #f0f4f9;
-  /* Geändert für User Message Hintergrund */
-  --user-message-text: var(--accent-color-hover);
-  /* Or var(--text-primary) for more contrast */
+  /* Original, will be overridden by Gemini style for the card body */
+  --user-message-text: var(--text-primary);
+  /* Changed from --accent-color-hover for better general readability */
   --ai-message-bg: #F8F9FA;
-  /* Geändert für AI Message Hintergrund */
+  /* Original, will be used by Gemini style for AI card body */
   --ai-message-text: var(--text-primary);
+
+  /* Gemini Style Chat Bubble Colors */
+  --user-message-gemini-bg: #DCE5F9;
+  /* Light grey-blue for user messages */
+  --ai-message-gemini-border: #E8EAED;
+  /* Subtle border for AI messages */
+
 
   /* Input specific */
   --input-bg: #FFFFFF;
@@ -106,24 +113,30 @@ a:hover {
 
 /* Chat Message Card Styles */
 .user-message-card .ant-card-body {
-  background-color: var(--user-message-bg) !important;
-  /* e.g., accent-color-light */
-  border: 1px solid color-mix(in srgb, var(--user-message-bg) 90%, var(--border-color)) !important;
-  border-radius: 18px 18px 4px 18px !important;
-  /* User bubble shape without avatar */
-}
-
-.user-message-card .ant-card-body .ant-typography {
+  background-color: var(--user-message-gemini-bg) !important;
+  border-radius: 20px 20px 5px 20px !important;
+  /* TL, TR, BR, BL for right-aligned */
+  padding: 10px 15px !important;
+  /* border: none !important; */
+  /* Ensure no conflicting border */
   color: var(--user-message-text) !important;
-  /* Darker text on light accent bg */
+  /* Ensure text readability */
+  max-width: 100%;
+  /* Ensures card body does not exceed parent Card's width */
+  /* The Ant Design Paragraph component within this body will handle text wrapping (white-space, overflow-wrap) */
 }
 
 .assistant-message-card .ant-card-body {
   background-color: var(--ai-message-bg) !important;
-}
-
-.assistant-message-card .ant-card-body .ant-typography {
+  /* Uses existing page background */
+  /* border: 1px solid var(--ai-message-gemini-border) !important; */
+  /* border-radius: 5px 20px 20px 20px !important; */
+  /* TL, TR, BR, BL for left-aligned */
+  padding: 10px 15px !important;
   color: var(--ai-message-text) !important;
+  max-width: 100%;
+  /* Ensures card body does not exceed parent Card's width */
+  /* The Ant Design Paragraph component within this body will handle text wrapping (white-space, overflow-wrap) */
 }
 
 /* Ensure card itself has no extra padding if body is styled */
@@ -131,10 +144,45 @@ a:hover {
 .assistant-message-card {
   padding: 0 !important;
   border: none !important;
-  /* Border is on the body */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-  /* Softer shadow for light theme */
-  /* other base card styles */
+  /* Border is on the body or not at all */
+  box-shadow: none !important;
+
+  width: fit-content;
+}
+
+/* Styles for the AI message copy button wrapper and its button */
+.assistant-message-container .assistant-copy-button {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  /* Slight upward movement on appear */
+  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+/* Hover effect for the PARENT .assistant-message-container to show the copy button */
+.assistant-message-container:hover .assistant-copy-button {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.assistant-copy-button .ant-btn {
+  /* Targeting the Ant Design button inside our wrapper */
+  color: var(--text-tertiary) !important;
+  /* Lighter icon color */
+  padding: 2px 4px !important;
+  /* Adjust padding for a tight fit */
+  background-color: transparent !important;
+  /* Ensure no default button background */
+  border: none !important;
+  /* Ensure no default button border */
+}
+
+.assistant-copy-button .ant-btn:hover {
+  color: var(--text-secondary) !important;
+  /* Darken icon slightly on hover */
+  background-color: color-mix(in srgb, var(--tertiary-bg) 50%, transparent) !important;
+  /* Subtle hover background for the button itself */
 }
 
 /* News Item Card Base and Hover Effect */

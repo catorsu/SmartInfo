@@ -75,7 +75,37 @@ export const deleteMessage = async (messageId: number): Promise<void> => {
 };
 
 
-export const askQuestion = async (question: Question): Promise<ChatAnswer> => {
-  const response = await api.post(`${BASE_PATH}/ask`, question);
-  return response.data;
+export const askQuestion = async (question: Question): Promise<Response> => {
+  const token = localStorage.getItem('authToken');
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Construct the full API URL. Assuming api.defaults.baseURL is available and correct.
+  // If not, use process.env.NEXT_PUBLIC_API_URL directly.
+  const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${BASE_PATH}/ask`;
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(question),
+  });
+
+  if (!response.ok) {
+    // Attempt to read error details from the response body if it's JSON
+    let errorDetail = `Request failed with status ${response.status}`;
+    try {
+      const errorData = await response.json();
+      if (errorData && errorData.detail) {
+        errorDetail = errorData.detail;
+      }
+    } catch (e) {
+      // Ignore if response body is not JSON or empty
+    }
+    throw new Error(errorDetail);
+  }
+  return response; // Return the raw Response object for streaming
 };

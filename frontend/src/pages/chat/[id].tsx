@@ -85,91 +85,218 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Modified useEffect for initialMessage to support streaming
   useEffect(() => {
     if (router.isReady && id && router.query.initialMessage && !initialMessageSentRef.current) {
       const initialMessageContent = router.query.initialMessage as string;
-      const currentChatId = id as string;
+      const currentChatId = id as string; // This is the NEW chat ID created by the previous page
       const chatIdNum = parseInt(currentChatId);
 
-      if (!isNaN(chatIdNum)) {
-        initialMessageSentRef.current = true; 
-        setIsSendingInitial(true);
-
-        const sendInitialMessageAsync = async () => {
-          try {
-            await chatService.createMessage({
-              chat_id: chatIdNum,
-              sender: 'user',
-              content: initialMessageContent
-            });
-
-            await chatService.askQuestion({
-              chat_id: chatIdNum,
-              content: initialMessageContent,
-            });
-
-            await loadChat(chatIdNum);
-
-          } catch (error) {
-            console.error('Failed to send initial message or get response:', error);
-            message.error(extractErrorMessage(error).message || 'Failed to send initial message.');
-          } finally {
-            if (router.query.initialMessage === initialMessageContent) {
-                router.replace(`/chat/${currentChatId}`, undefined, { shallow: true });
-            }
-            setIsSendingInitial(false);
-          }
-        };
-        sendInitialMessageAsync();
-      } else {
+      if (isNaN(chatIdNum)) {
         setError({ type: 'notFound', message: `Invalid chat ID for initial message: ${currentChatId}`, status: 400 });
         setIsSendingInitial(false);
-        initialMessageSentRef.current = true; 
+        initialMessageSentRef.current = true;
         if (router.query.initialMessage) {
             router.replace(`/chat/${currentChatId}`, undefined, { shallow: true });
         }
+        return;
       }
+      
+      initialMessageSentRef.current = true;
+      setIsSendingInitial(true);
+
+      const sendInitialMessageAndStreamAsync = async () => {
+        try {
+          // 1. Create the user's first message in the backend
+          await chatService.createMessage({
+            chat_id: chatIdNum,
+            sender: 'user',
+            content: initialMessageContent,
+          });
+          
+          // Optimistically add user message to UI (or wait for loadChat below)
+          // For simplicity with initial message, we'll let loadChat handle it after streaming.
+
+          // 2. Prepare for streaming AI response
+          const assistantStreamingId = `assistant-streaming-initial-${Date.now()}`;
+          const placeholderAssistantMessage: Message = {
+            id: assistantStreamingId as any,
+            chat_id: chatIdNum,
+            sender: 'assistant',
+            content: '',
+            timestamp: new Date().toISOString(),
+            // Sequence number will be fixed by loadChat
+            sequence_number: 1, // Assuming user message is 0 or will be set by backend
+          };
+          // Add user message and placeholder to UI if chat is loaded
+          // This part is tricky because `loadChat` might not have run yet to set `chat`
+          // For now, we'll add the placeholder directly and rely on `loadChat` in finally to correct sequence.
+          // A better approach might be to ensure `chat` is loaded before this effect runs or pass chat data.
+          
+          // Let's fetch the chat first to ensure we have messages context if any (though unlikely for initial)
+          await loadChat(chatIdNum); // This will set `messages` state
+
+          setMessages(prev => [
+            ...prev.filter(m => m.content !== initialMessageContent || m.sender !== 'user'), // remove potential duplicates if any
+            { 
+              id: `user-initial-${Date.now()}` as any, 
+              chat_id: chatIdNum, 
+              sender: 'user', 
+              content: initialMessageContent, 
+              timestamp: new Date().toISOString(), 
+              sequence_number: (prev.length > 0 ? Math.max(...prev.map(m => m.sequence_number)) : -1) +1 
+            },
+            placeholderAssistantMessage
+          ]);
+
+
+          // 3. Call askQuestion and process stream
+          const response = await chatService.askQuestion({ // This is the new askQuestion
+            chat_id: chatIdNum,
+            content: initialMessageContent,
+          });
+
+          if (!response.body) {
+            throw new Error('Response body is null for initial message');
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+          let done = false;
+
+          while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            if (value) {
+              const chunk = decoder.decode(value, { stream: true });
+              setMessages(prevMessages =>
+                prevMessages.map(msg =>
+                  msg.id === assistantStreamingId
+                    ? { ...msg, content: msg.content + chunk }
+                    : msg
+                )
+              );
+            }
+          }
+        } catch (error: any) {
+          console.error('Failed to send initial message or stream response:', error);
+          message.error(extractErrorMessage(error).message || 'Failed to process initial message.');
+           //const assistantStreamingId = `assistant-streaming-initial-${Date.now()}`; // This ID might be different
+           setMessages(prevMessages =>
+            prevMessages.map(msg =>
+              (msg.id.toString().startsWith('assistant-streaming-initial-')) && msg.content === ''
+                ? { ...msg, content: `Error: ${error.message || 'Failed to get response'}` }
+                : msg
+            )
+          );
+        } finally {
+          if (router.query.initialMessage === initialMessageContent) {
+            router.replace(`/chat/${currentChatId}`, undefined, { shallow: true });
+          }
+          setIsSendingInitial(false);
+          loadChat(chatIdNum); // Refresh message list from backend
+        }
+      };
+      sendInitialMessageAndStreamAsync();
     }
   }, [
     router.isReady,
-    router.query.initialMessage, // Depend explicitly on the query parameter
-    id,                          // Depend on the chat ID from the path
-    loadChat                     // loadChat is memoized
+    router.query.initialMessage,
+    id,
+    loadChat // loadChat is memoized
+    // Removed `chat` from dependencies as it might cause re-runs if loadChat updates it.
   ]);
 
 
+  // Modified handleSendMessage for streaming
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !chat || sending || isSendingInitial) return;
 
-    const userMessageData: MessageCreate = {
+    const userMessageContent = newMessage;
+    setNewMessage(''); // Clear input immediately
+
+    // Optimistically add user message to UI
+    // Backend createMessage will be called before streaming AI response
+    const tempUserMessageId = `user-${Date.now()}`;
+    const optimisticUserMessage: Message = {
+      id: tempUserMessageId as any, // Temporary ID
       chat_id: chat.id,
       sender: 'user',
-      content: newMessage
+      content: userMessageContent,
+      timestamp: new Date().toISOString(),
+      sequence_number: (messages.length > 0 ? Math.max(...messages.map(m => m.sequence_number)) : 0) + 1,
     };
+    setMessages(prev => [...prev, optimisticUserMessage]);
+    setSending(true);
 
     try {
-      setSending(true);
-
-      const messageContent = newMessage;
-      setNewMessage('');
-
-      // The ChatInputBar component will manage its own internal focus if needed.
-      // Focus logic previously tied to textAreaRef is removed.
-
-      await chatService.createMessage(userMessageData);
-
-      await chatService.askQuestion({
+      // 1. Save user message to backend
+      await chatService.createMessage({
         chat_id: chat.id,
-        content: messageContent, // Use the stored content
+        sender: 'user',
+        content: userMessageContent,
+      });
+      // Optionally, refresh chat here to get the real user message ID, or wait till end.
+      // For now, we'll rely on the final loadChat.
+
+      // 2. Prepare for streaming AI response
+      const assistantStreamingId = `assistant-streaming-${Date.now()}`;
+      const placeholderAssistantMessage: Message = {
+        id: assistantStreamingId as any, // Temporary ID
+        chat_id: chat.id,
+        sender: 'assistant',
+        content: '', // Start with empty content
+        timestamp: new Date().toISOString(),
+        sequence_number: optimisticUserMessage.sequence_number + 1,
+      };
+      setMessages(prev => [...prev, placeholderAssistantMessage]);
+
+      // 3. Call askQuestion and process stream
+      const response = await chatService.askQuestion({
+        chat_id: chat.id,
+        content: userMessageContent,
       });
 
-      await loadChat(chat.id);
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
 
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      message.error(extractErrorMessage(error).message || 'Failed to send message');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          setMessages(prevMessages =>
+            prevMessages.map(msg =>
+              msg.id === assistantStreamingId
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to send message or stream response:', error);
+      message.error(extractErrorMessage(error).message || 'Failed to process message.');
+      // Update placeholder with error message
+      // const assistantStreamingId = `assistant-streaming-${Date.now()}`; // This ID might be different if error occurs before placeholder is set.
+                                                                      // It's better to find the existing placeholder if one was added.
+      setMessages(prevMessages =>
+        prevMessages.map(msg =>
+          (msg.id.toString().startsWith('assistant-streaming-')) && msg.content === '' // A way to find the placeholder
+            ? { ...msg, content: `Error: ${error.message || 'Failed to get response'}` }
+            : msg
+        )
+      );
     } finally {
       setSending(false);
+      if (chat) { // Ensure chat is not null
+        loadChat(chat.id); // Refresh message list from backend
+      }
     }
   };
 
@@ -186,54 +313,58 @@ const ChatPage: React.FC = () => {
   const renderMessages = () => {
     return messages.map((msg) => {
       const isUser = msg.sender === 'user';
+      const bubbleContainerClass = isUser ? 'user-message-container' : 'assistant-message-container';
+
+      // This style is for the div that directly wraps the Card and the copy button.
+      // `display: 'inline-block'` makes this container only as wide as its content (the Card).
+      const messageContainerStyles: React.CSSProperties = {
+        position: 'relative',
+        display: 'inline-block', 
+      };
 
       return (
         <div
           key={msg.id}
-          // className="message-row" // Retained for alignment if used
           style={{
             display: 'flex',
             justifyContent: isUser ? 'flex-end' : 'flex-start',
-            marginBottom: 12,
+            marginBottom: 8,
+            width: '100%',
           }}
         >
           <div
-            className={`message-bubble-container ${isUser ? 'user-message-container' : 'assistant-message-container'}`}
-            style={{
-              position: 'relative',
-              display: 'inline-block', // Keeps bubble tight to content
-            }}
+            className={`message-bubble-container ${bubbleContainerClass}`}
+            style={messageContainerStyles}
           >
             <Card
               className={isUser ? 'user-message-card' : 'assistant-message-card'}
-              style={{ maxWidth: '80%' }} // MaxWidth on card itself is fine
-              bodyStyle={{ padding: '10px 14px 30px 35px' }}
             >
-              <Paragraph style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 0 }}>
+              <Paragraph
+              style={{
+                margin: 0,
+              }}
+              >
                 {msg.content}
               </Paragraph>
             </Card>
-            <div
-              className="copy-button-wrapper" // Class for styling via <style jsx>
-              style={{
-                position: 'absolute',
-                bottom: '8px',
-                left: '8px',
-                // Opacity & visibility controlled by CSS via class a few lines below
-                transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
-                zIndex: 1,
-              }}
-            >
-              <Tooltip title="Copy message">
-                <Button
-                  type="text"
-                  icon={<CopyOutlined />}
-                  size="small"
-                  onClick={() => handleCopyMessage(msg.content)}
-                  style={{ color: 'var(--text-secondary)', padding: '0 4px' }}
-                />
-              </Tooltip>
-            </div>
+            {!isUser && (
+              <div
+                className="copy-button-wrapper assistant-copy-button"
+                style={{
+                  marginTop: '8px',
+                  marginLeft: '8px',
+                }}
+              >
+                <Tooltip title="Copy message">
+                  <Button
+                    type="text"
+                    icon={<CopyOutlined />}
+                    size="small"
+                    onClick={() => handleCopyMessage(msg.content)}
+                  />
+                </Tooltip>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -289,26 +420,7 @@ const ChatPage: React.FC = () => {
 
   return (
     <>
-      <style jsx>{`
-        .message-bubble-container .copy-button-wrapper {
-          opacity: 0;
-          visibility: hidden;
-        }
-        .message-bubble-container:hover .copy-button-wrapper {
-          opacity: 1;
-          visibility: visible;
-        }
-        /* Optional: if you want different background for user/assistant for the card itself */
-        /* These would typically be in global.css or theme if Ant variables are used */
-        /*
-        .user-message-container .ant-card {
-           background-color: var(--user-message-bg, #e6f7ff);
-        }
-        .assistant-message-container .ant-card {
-           background-color: var(--assistant-message-bg, #f0f0f0);
-        }
-        */
-      `}</style>
+      {/* Removed the <style jsx> block that was here */}
       <div style={{ width: '100%', maxWidth: '750px', margin: '0 auto', maxHeight: '85vh', display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 4px' }}>
           {messages.length === 0 ? (
