@@ -52,7 +52,7 @@ from db.connection import (
     get_db_connection_context,
 )
 from db.repositories import UserPreferenceRepository
-from core.llm import LLMClientPool
+from core.llm.pool import LLMClientPool
 from api import api_router
 
 
