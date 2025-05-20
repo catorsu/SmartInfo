@@ -1,163 +1,284 @@
 """
-Base Repository Module
-Provides a common base for database repository classes using asyncpg
+Base Repository Module for SmartInfo.
+
+This module provides a common base class (`BaseRepository`) for all database
+repository classes in the SmartInfo application. It encapsulates common
+asynchronous database operations using `asyncpg`, such as executing queries,
+fetching single or multiple rows, and managing database connection contexts.
+Subclasses will inherit these helper methods to interact with specific tables.
+
+@module_purpose: To abstract common database interaction patterns, reduce
+                 boilerplate code in concrete repository implementations, and
+                 provide a consistent way to handle database connections and
+                 query execution.
+@primary_consumers: All concrete repository classes within the
+                    `backend.db.repositories` package inherit from
+                    `BaseRepository`.
+@primary_dependencies: `asyncpg` (for database operations),
+                       `backend.db.connection.get_db_connection_context` (for
+                       obtaining database connection contexts).
+
+Key Components/Exports:
+  - BaseRepository: The abstract base class for repositories.
 """
 
 import logging
-import asyncpg
-from typing import Any, List, Tuple, Optional, Dict, Union
-from contextlib import asynccontextmanager
+import asyncpg  # Keep this for asyncpg.Record and asyncpg.PostgresError
+from typing import Any, List, Tuple, Optional, Union, TYPE_CHECKING, AsyncIterator
+from contextlib import asynccontextmanager, AbstractAsyncContextManager
 
 from db.connection import get_db_connection_context
+
+if TYPE_CHECKING:
+    from asyncpg.pool import PoolConnectionProxy
+    from asyncpg.connection import (
+        Connection as AsyncpgConnection,
+    )  # Explicit import for Connection
 
 logger = logging.getLogger(__name__)
 
 
 class BaseRepository:
-    """Base repository for database operations using asyncpg."""
+    """
+    Base repository providing common asynchronous database operations using asyncpg.
 
-    def __init__(self, connection: Optional[asyncpg.Connection] = None):
-        """
-        Initializes the repository with an optional database connection override.
-        This is primarily for testing purposes.
-        :param connection: asyncpg.Connection (for overriding the default context manager)
-        """
+    This class is intended to be subclassed by specific entity repositories.
+    It handles acquiring database connections via an async context manager and
+    provides helper methods for executing various types of SQL queries.
 
+    @class_responsibility: To provide a foundational set of asynchronous methods
+                           for database interaction, simplifying the implementation
+                           of concrete repository classes.
+    @typical_usage_pattern: Inherited by classes like `UserRepository`,
+                            `NewsRepository`, etc. Its methods (`_execute`,
+                            `_fetchone`, etc.) are called by the subclasses to
+                            perform database operations.
+
+    Attributes:
+        _connection_override (Optional[AsyncpgConnection]): An optional,
+            externally provided database connection. Primarily used for testing
+            to inject a mock or specific connection instance, bypassing the
+            default connection context manager.
+    """
+
+    def __init__(self, connection: Optional["AsyncpgConnection"] = None) -> None:
+        """
+        Initializes the BaseRepository.
+
+        Args:
+            connection (Optional[AsyncpgConnection]): An optional asyncpg
+                connection object. If provided, this connection will be used
+                for all database operations. Defaults to None.
+
+        Side Effects:
+            - Sets `self._connection_override`.
+        """
         self._connection_override = connection
 
-    def _get_connection_context(self):
+    def _get_connection_context(
+        self,
+    ) -> AbstractAsyncContextManager[Union["AsyncpgConnection", "PoolConnectionProxy"]]:
         """
-        Get the database connection context manager.
-        Uses the override if provided, otherwise uses the default from db.connection.
+        Gets the appropriate asynchronous database connection context manager.
+
+        Returns:
+            AbstractAsyncContextManager yielding a DB connection.
+
+        Side Effects:
+            - May trigger lazy initialization of the global DB connection manager.
         """
         if self._connection_override:
 
             @asynccontextmanager
-            async def override_context_manager():
+            async def override_context_manager() -> AsyncIterator["AsyncpgConnection"]:
+                if self._connection_override is None:
+                    raise RuntimeError("Connection override was None when expected.")
                 yield self._connection_override
 
             return override_context_manager()
         else:
-
             return get_db_connection_context()
 
-    async def _execute(self, query: str, params: Tuple = ()) -> Optional[str]:
+    async def _execute(self, query: str, params: Tuple[Any, ...] = ()) -> Optional[str]:
         """
-        Execute a query (INSERT, UPDATE, DELETE).
+        Executes a SQL query (INSERT, UPDATE, DELETE).
 
         Args:
-            query: SQL query string (using $1, $2 placeholders)
-            params: Parameters for the query
+            query (str): SQL query string.
+            params (Tuple[Any, ...]): Parameters for the query.
 
         Returns:
-            Status string from asyncpg on success.
-            Raises exceptions on database errors.
-        """
-        try:
-            async with self._get_connection_context() as conn:  # Removed await
-                status_string = await conn.execute(query, *params)
-                return status_string
-        except asyncpg.PostgresError as e:
-            logger.error(
-                f"Error executing query: {query} with params {params}. Error: {e}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error during query execution: {e}")
-            raise
+            Optional[str]: Status string from `asyncpg`.
 
-    async def _executemany(self, query: str, params_list: List[Tuple]) -> bool:
-        """
-        Execute a batch query with multiple parameter sets.
+        Raises:
+            asyncpg.PostgresError: For database errors.
+            Exception: For other unexpected errors.
 
-        Args:
-            query: SQL query string (using $1, $2 placeholders)
-            params_list: List of parameter tuples for the query
-
-        Returns:
-            True if execution was successful (no exceptions).
-            Raises exceptions on database errors.
-        """
-        try:
-            async with self._get_connection_context() as conn:  # Removed await
-                await conn.executemany(query, params_list)
-                return True
-        except asyncpg.PostgresError as e:
-            logger.error(f"Error executing batch query: {query}. Error: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error during batch query execution: {e}")
-            raise
-
-    async def _fetchval(self, query: str, params: Tuple = ()) -> Optional[Any]:
-        """
-        Execute a query and fetch a single value.
-
-        Args:
-            query: SQL query string (using $1, $2 placeholders)
-            params: Parameters for the query
-        Returns:
-            Single value from the result or None if no results.
-            Raises exceptions on database errors.
-        """
-        try:
-            async with self._get_connection_context() as conn:  # Removed await
-                return await conn.fetchval(query, *params)
-        except asyncpg.PostgresError as e:
-            logger.error(
-                f"Error fetching value: {query} with params {params}. Error: {e}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error fetching value: {e}")
-            raise
-
-    async def _fetchone(
-        self, query: str, params: Tuple = ()
-    ) -> Optional[asyncpg.Record]:
-        """
-        Execute a query and fetch one result as an asyncpg.Record.
-
-        Args:
-            query: SQL query string (using $1, $2 placeholders)
-            params: Parameters for the query
-
-        Returns:
-            Single row as an asyncpg.Record or None if no results.
-            Raises exceptions on database errors.
-        """
-        try:
-            async with self._get_connection_context() as conn:  # Removed await
-                return await conn.fetchrow(query, *params)
-        except asyncpg.PostgresError as e:
-            logger.error(
-                f"Error fetching one row: {query} with params {params}. Error: {e}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error fetching one row: {e}")
-            raise
-
-    async def _fetchall(self, query: str, params: Tuple = ()) -> List[asyncpg.Record]:
-        """
-        Execute a query and fetch all results as a list of asyncpg.Record objects.
-
-        Args:
-            query: SQL query string (using $1, $2 placeholders)
-            params: Parameters for the query
-
-        Returns:
-            List of rows as asyncpg.Record objects or empty list if no results.
-            Raises exceptions on database errors.
+        Side Effects:
+            - Executes SQL query, may modify database state.
+            - Logs errors.
         """
         try:
             async with self._get_connection_context() as conn:
-                return await conn.fetch(query, *params)
+                status_string: Optional[str] = await conn.execute(query, *params)  # type: ignore[union-attr]
+                return status_string
         except asyncpg.PostgresError as e:
             logger.error(
-                f"Error fetching all rows: {query} with params {params}. Error: {e}"
+                f"Error executing query: {query} with params {params}. Error: {e}",
+                exc_info=True,
             )
             raise
         except Exception as e:
-            logger.error(f"Unexpected error fetching all rows: {e}")
+            logger.error(
+                f"Unexpected error during query execution: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def _executemany(
+        self, query: str, params_list: List[Tuple[Any, ...]]
+    ) -> bool:
+        """
+        Executes a batch query with multiple parameter sets.
+
+        Args:
+            query (str): SQL query string.
+            params_list (List[Tuple[Any, ...]]): List of parameter tuples.
+
+        Returns:
+            bool: `True` if execution was successful.
+
+        Raises:
+            asyncpg.PostgresError: For database errors.
+            Exception: For other unexpected errors.
+
+        Side Effects:
+            - Executes SQL query multiple times, may modify database state.
+            - Logs errors.
+        """
+        try:
+            async with self._get_connection_context() as conn:
+                await conn.executemany(query, params_list)  # type: ignore[union-attr]
+                return True
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Error executing batch query: {query}. Error: {e}", exc_info=True
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during batch query execution: {query}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def _fetchval(
+        self, query: str, params: Tuple[Any, ...] = ()
+    ) -> Optional[Any]:
+        """
+        Executes a query and fetches a single scalar value.
+
+        Args:
+            query (str): SQL query string.
+            params (Tuple[Any, ...]): Parameters for the query.
+
+        Returns:
+            Optional[Any]: Single value or `None`.
+
+        Raises:
+            asyncpg.PostgresError: For database errors.
+            Exception: For other unexpected errors.
+
+        Side Effects:
+            - Executes SQL query.
+            - Logs errors.
+        """
+        try:
+            async with self._get_connection_context() as conn:
+                return await conn.fetchval(query, *params)  # type: ignore[union-attr]
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Error fetching value: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error fetching value: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def _fetchone(
+        self, query: str, params: Tuple[Any, ...] = ()
+    ) -> Optional[asyncpg.Record]:
+        """
+        Executes a query and fetches one result as an `asyncpg.Record`.
+
+        Args:
+            query (str): SQL query string.
+            params (Tuple[Any, ...]): Parameters for the query.
+
+        Returns:
+            Optional[asyncpg.Record]: Single row or `None`.
+
+        Raises:
+            asyncpg.PostgresError: For database errors.
+            Exception: For other unexpected errors.
+
+        Side Effects:
+            - Executes SQL query.
+            - Logs errors.
+        """
+        try:
+            async with self._get_connection_context() as conn:
+                return await conn.fetchrow(query, *params)  # type: ignore[union-attr]
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Error fetching one row: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error fetching one row: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def _fetchall(
+        self, query: str, params: Tuple[Any, ...] = ()
+    ) -> List[asyncpg.Record]:
+        """
+        Executes a query and fetches all results as a list of `asyncpg.Record`.
+
+        Args:
+            query (str): SQL query string.
+            params (Tuple[Any, ...]): Parameters for the query.
+
+        Returns:
+            List[asyncpg.Record]: List of rows or empty list.
+
+        Raises:
+            asyncpg.PostgresError: For database errors.
+            Exception: For other unexpected errors.
+
+        Side Effects:
+            - Executes SQL query.
+            - Logs errors.
+        """
+        try:
+            async with self._get_connection_context() as conn:
+                return await conn.fetch(query, *params)  # type: ignore[union-attr]
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Error fetching all rows: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error fetching all rows: {query} with params {params}. Error: {e}",
+                exc_info=True,
+            )
             raise

@@ -1,17 +1,35 @@
 """
-This module provides a connection manager for the database.
-It handles database connection initialization and cleanup, supporting
-both connection pool and single connection modes.
+Database Connection Management for SmartInfo.
+
+This module provides a robust, singleton-pattern based connection manager for
+the PostgreSQL database used by the SmartInfo application. It handles the
+initialization of database resources (either a connection pool or a single
+connection), schema creation/verification, and graceful cleanup of connections.
+It also offers utility functions for accessing the database connection context,
+primarily for dependency injection in FastAPI.
+
+@module_purpose: To centralize and manage asynchronous database connections,
+                 ensure schema integrity on startup, and provide a consistent
+                 interface for database access throughout the application.
+@primary_consumers: FastAPI application startup (`main.py` for initialization),
+                    repository classes (`backend.db.repositories.*` via
+                    `get_db_connection_context`).
+@primary_dependencies: `asyncpg` (PostgreSQL driver), `backend.config` (for DB
+                       credentials), `backend.db.schema_constants`.
+
+Key Components/Exports:
+  - DatabaseConnectionManager: Singleton class managing the database resource.
+  - init_db_connection: Initializes the global DB connection manager instance.
+  - get_db_connection_manager: Retrieves the global DB connection manager.
+  - get_db_connection_context: Provides an async context manager for DB connections.
 """
 
 import os
 import logging
 import asyncpg
-import atexit
 from threading import Lock
-from typing import Optional, Union, AsyncIterator, TYPE_CHECKING
+from typing import Optional, Union, AsyncIterator, TYPE_CHECKING, Any
 from contextlib import asynccontextmanager, AbstractAsyncContextManager
-
 
 from config import config
 from db.schema_constants import (
@@ -26,534 +44,379 @@ from db.schema_constants import (
     FetchHistory,
 )
 
+if TYPE_CHECKING:
+    from asyncpg.pool import PoolConnectionProxy
+    from asyncpg.connection import Connection as AsyncpgConnection
+
 logger = logging.getLogger(__name__)
 
 
 class DatabaseConnectionManager:
+    """
+    Manages the database connection resource (pool or single connection).
+
+    This class implements a singleton pattern to ensure only one instance
+    manages the database connection throughout the application's lifecycle.
+    It handles initialization, schema creation, and cleanup.
+
+    @class_responsibility: To provide a centralized point for managing and
+                           accessing the application's database connection(s).
+                           It ensures that the database schema is created or
+                           verified upon initialization.
+    @typical_usage_pattern: Instantiated once via `init_db_connection()`.
+                            Accessed via `get_db_connection_manager()` or
+                            `get_db_connection_context()` for obtaining
+                            connections within repositories or services.
+
+    Attributes:
+        _instance (Optional[DatabaseConnectionManager]): The singleton instance.
+        _lock (Lock): A threading lock to ensure thread-safe singleton creation.
+        _db_resource (Optional[Union[asyncpg.Pool, AsyncpgConnection]]):
+            The actual database resource, either a connection pool or a single
+            connection object.
+        _connection_mode (Optional[str]): Stores the mode of connection,
+            either "pool" or "single".
+    """
+
     _instance: Optional["DatabaseConnectionManager"] = None
-    _lock = Lock()
-    _db_resource: Optional[Union[asyncpg.Pool, asyncpg.Connection]] = None
+    _lock: Lock = Lock()
+    _db_resource: Optional[Union[asyncpg.Pool, "AsyncpgConnection"]] = None
     _connection_mode: Optional[str] = None
 
-    def __new__(cls):
+    def __new__(cls) -> "DatabaseConnectionManager":
+        """
+        Ensures that only one instance of DatabaseConnectionManager is created.
+
+        This method implements the singleton pattern using a thread-safe lock.
+
+        Returns:
+            DatabaseConnectionManager: The singleton instance of the class.
+
+        Side Effects:
+            - If no instance exists, creates a new `DatabaseConnectionManager`
+              instance and assigns it to `cls._instance`.
+            - Logs the creation of a new instance.
+        """
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     logger.info("Creating new DatabaseConnectionManager instance.")
                     cls._instance = super(DatabaseConnectionManager, cls).__new__(cls)
-                    cls._instance._db_resource = None
-                    cls._instance._connection_mode = None
         return cls._instance
 
     async def _initialize(
         self, db_connection_mode: str = "pool", min_size: int = 2, max_size: int = 2
-    ):
+    ) -> None:
         """
-        Initialize database connection resource (pool or single connection).
+        Initializes the database connection resource (pool or single connection).
 
         Args:
-            db_connection_mode: str = "pool" or "single"
-            min_size: int = 2
-            max_size: int = 2
+            db_connection_mode (str): "pool" or "single".
+            min_size (int): Min pool size for "pool" mode.
+            max_size (int): Max pool size for "pool" mode.
 
-        Returns:
-            None
+        Raises:
+            ValueError: If config is missing or mode is invalid.
+            asyncpg.PostgresError: For DB connection or table creation errors.
+            Exception: For other unexpected errors.
+
+        Side Effects:
+            - Sets `self._connection_mode`, `self._db_resource`.
+            - Calls `self._create_tables()`.
+            - Logs initialization stages.
+            - Attempts cleanup on error.
         """
         if self._db_resource is not None:
             logger.warning("Database resource already initialized.")
             return
 
         self._connection_mode = db_connection_mode
-        logger.info(f"Database connection mode: {self._connection_mode}")
+        logger.info(f"Database connection mode set to: {self._connection_mode}")
 
         try:
-
             db_user = config.db_user
             db_password = config.db_password
             db_name = config.db_name
             db_host = config.db_host
-            db_port = config.db_port  # Already an int from property
+            db_port = config.db_port
 
-            if not all([db_user, db_password, db_name]):
+            if not all([db_user, db_password, db_name, db_host, db_port is not None]):
+                raise ValueError("Missing required database configuration values.")
 
-                raise ValueError(
-                    "Missing required database configuration. Check config initialization."
-                )
+            dsn = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+            logged_dsn = f"postgresql://{db_user}:***@{db_host}:{db_port}/{db_name}"
 
             if self._connection_mode == "pool":
-                logger.info(
-                    f"Initializing database connection pool to: postgresql://{db_user}:***@{db_host}:{db_port}/{db_name}"
-                )
+                logger.info(f"Initializing database connection pool to: {logged_dsn}")
                 self._db_resource = await asyncpg.create_pool(
-                    user=db_user,
-                    password=db_password,
-                    database=db_name,
-                    host=db_host,
-                    port=db_port,
-                    min_size=min_size,
-                    max_size=max_size,
+                    dsn=dsn, min_size=min_size, max_size=max_size
                 )
-
+                if not self._db_resource:
+                    raise RuntimeError("Failed to create database pool.")
                 await self._create_tables(self._db_resource)
                 logger.info("Database connection pool initialized successfully.")
 
             elif self._connection_mode == "single":
-                logger.info(
-                    f"Initializing single database connection to: postgresql://{db_user}:***@{db_host}:{db_port}/{db_name}"
-                )
-                self._db_resource = await asyncpg.connect(
-                    user=db_user,
-                    password=db_password,
-                    database=db_name,
-                    host=db_host,
-                    port=db_port,
-                )
-
+                logger.info(f"Initializing single database connection to: {logged_dsn}")
+                self._db_resource = await asyncpg.connect(dsn=dsn)
+                if not self._db_resource:
+                    raise RuntimeError("Failed to create single database connection.")
                 await self._create_tables(self._db_resource)
                 logger.info("Single database connection initialized successfully.")
-
             else:
                 raise ValueError(
-                    f"Invalid DB_CONNECTION_MODE: {self._connection_mode}. Must be 'pool' or 'single'."
+                    f"Invalid DB_CONNECTION_MODE: {self._connection_mode}."
                 )
 
         except ValueError as ve:
             logger.critical(f"Database configuration error: {ve}")
-
             raise
         except asyncpg.PostgresError as pe:
             logger.error(f"PostgreSQL connection error: {pe}", exc_info=True)
             await self._cleanup()
             raise
         except Exception as e:
-            logger.error(
-                f"Database connection initialization failed: {str(e)}", exc_info=True
-            )
+            logger.error(f"Database initialization failed: {str(e)}", exc_info=True)
             await self._cleanup()
             raise
 
     async def _create_tables(
-        self, conn_or_pool: Union[asyncpg.Pool, asyncpg.Connection]
-    ):
-        """Create database tables using PostgreSQL syntax if they do not exist."""
-        if conn_or_pool is None:
-            logger.error("Cannot create tables, database resource is not initialized.")
-            return
+        self, conn_or_pool: Union[asyncpg.Pool, "AsyncpgConnection"]
+    ) -> None:
+        """
+        Creates database tables if they do not exist.
 
+        Args:
+            conn_or_pool: The database connection or pool.
+
+        Raises:
+            asyncpg.PostgresError: If schema creation fails.
+
+        Side Effects:
+            - Creates tables and indexes in the database.
+            - Logs creation status.
+        """
+        if conn_or_pool is None:
+            logger.error("Cannot create tables, DB resource not initialized.")
+            return
         logger.info("Verifying/Creating database tables...")
 
-        async def execute_schema(conn):
-
-            async with conn.transaction():
+        async def execute_schema(
+            conn: Union["AsyncpgConnection", "PoolConnectionProxy"],
+        ) -> None:
+            async with conn.transaction():  # type: ignore[union-attr]
                 try:
-
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {Users.TABLE_NAME} (
-                            {Users.ID} SERIAL PRIMARY KEY,
-                            {Users.USERNAME} TEXT NOT NULL UNIQUE,
-                            {Users.HASHED_PASSWORD} TEXT NOT NULL
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {Users.TABLE_NAME} ({Users.ID} SERIAL PRIMARY KEY, {Users.USERNAME} TEXT NOT NULL UNIQUE, {Users.HASHED_PASSWORD} TEXT NOT NULL)")  # type: ignore[union-attr]
                     logger.debug(f"Table {Users.TABLE_NAME} checked/created.")
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_users_username ON {Users.TABLE_NAME} ({Users.USERNAME});")  # type: ignore[union-attr]
+                    logger.debug("Index idx_users_username checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_users_username ON {Users.TABLE_NAME} ({Users.USERNAME})
-                    """
-                    )
-                    logger.debug(f"Index idx_users_username checked/created.")
-
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {NewsCategory.TABLE_NAME} (
-                            {NewsCategory.ID} SERIAL PRIMARY KEY,
-                            {NewsCategory.NAME} TEXT NOT NULL,
-                            {NewsCategory.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            UNIQUE ({NewsCategory.NAME}, {NewsCategory.USER_ID})
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {NewsCategory.TABLE_NAME} ({NewsCategory.ID} SERIAL PRIMARY KEY, {NewsCategory.NAME} TEXT NOT NULL, {NewsCategory.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, UNIQUE ({NewsCategory.NAME}, {NewsCategory.USER_ID}))")  # type: ignore[union-attr]
                     logger.debug(f"Table {NewsCategory.TABLE_NAME} checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {NewsSource.TABLE_NAME} (
-                            {NewsSource.ID} SERIAL PRIMARY KEY,
-                            {NewsSource.NAME} TEXT NOT NULL,
-                            {NewsSource.URL} TEXT NOT NULL,
-                            {NewsSource.CATEGORY_ID} INTEGER NOT NULL,
-                            {NewsSource.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            FOREIGN KEY ({NewsSource.CATEGORY_ID}) REFERENCES {NewsCategory.TABLE_NAME}({NewsCategory.ID}) ON DELETE CASCADE,
-                            UNIQUE ({NewsSource.URL}, {NewsSource.USER_ID}),
-                            UNIQUE ({NewsSource.NAME}, {NewsSource.USER_ID})
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {NewsSource.TABLE_NAME} ({NewsSource.ID} SERIAL PRIMARY KEY, {NewsSource.NAME} TEXT NOT NULL, {NewsSource.URL} TEXT NOT NULL, {NewsSource.CATEGORY_ID} INTEGER NOT NULL REFERENCES {NewsCategory.TABLE_NAME}({NewsCategory.ID}) ON DELETE CASCADE, {NewsSource.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, UNIQUE ({NewsSource.URL}, {NewsSource.USER_ID}), UNIQUE ({NewsSource.NAME}, {NewsSource.USER_ID}))")  # type: ignore[union-attr]
                     logger.debug(f"Table {NewsSource.TABLE_NAME} checked/created.")
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_sources_url ON {NewsSource.TABLE_NAME} ({NewsSource.URL});")  # type: ignore[union-attr]
+                    logger.debug("Index idx_news_sources_url checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_sources_url ON {NewsSource.TABLE_NAME} ({NewsSource.URL})
-                    """
-                    )
-                    logger.debug(f"Index idx_news_sources_url checked/created.")
-
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {News.TABLE_NAME} (
-                            {News.ID} BIGSERIAL PRIMARY KEY,
-                            {News.TITLE} TEXT NOT NULL,
-                            {News.URL} TEXT NOT NULL,
-                            {News.SOURCE_NAME} TEXT,
-                            {News.CATEGORY_NAME} TEXT,
-                            {News.SOURCE_ID} INTEGER,
-                            {News.CATEGORY_ID} INTEGER,
-                            {News.SUMMARY} TEXT,
-                            {News.ANALYSIS} TEXT,
-                            {News.DATE} TEXT,
-                            {News.CONTENT} TEXT,
-                            {News.TOP_IMAGE} TEXT,
-                            {News.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            {News.CREATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- New column
-                            FOREIGN KEY ({News.SOURCE_ID}) REFERENCES {NewsSource.TABLE_NAME}({NewsSource.ID}) ON DELETE SET NULL,
-                            FOREIGN KEY ({News.CATEGORY_ID}) REFERENCES {NewsCategory.TABLE_NAME}({NewsCategory.ID}) ON DELETE SET NULL,
-                            UNIQUE ({News.URL}, {News.USER_ID})
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {News.TABLE_NAME} ({News.ID} BIGSERIAL PRIMARY KEY, {News.TITLE} TEXT NOT NULL, {News.URL} TEXT NOT NULL, {News.SOURCE_NAME} TEXT, {News.CATEGORY_NAME} TEXT, {News.SOURCE_ID} INTEGER REFERENCES {NewsSource.TABLE_NAME}({NewsSource.ID}) ON DELETE SET NULL, {News.CATEGORY_ID} INTEGER REFERENCES {NewsCategory.TABLE_NAME}({NewsCategory.ID}) ON DELETE SET NULL, {News.SUMMARY} TEXT, {News.ANALYSIS} TEXT, {News.DATE} TEXT, {News.CONTENT} TEXT, {News.TOP_IMAGE} TEXT, {News.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, {News.CREATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, {News.TASK_GROUP_ID} TEXT, UNIQUE ({News.URL}, {News.USER_ID}))")  # type: ignore[union-attr]
                     logger.debug(f"Table {News.TABLE_NAME} checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_url ON {News.TABLE_NAME} ({News.URL})
-                    """
-                    )
-                    logger.debug(f"Index idx_news_url checked/created.")
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_date ON {News.TABLE_NAME} ({News.DATE} DESC)
-                    """
-                    )
-                    logger.debug(f"Index idx_news_date checked/created.")
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_category_id ON {News.TABLE_NAME} ({News.CATEGORY_ID})
-                    """
-                    )
-                    logger.debug(f"Index idx_news_category_id checked/created.")
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_source_id ON {News.TABLE_NAME} ({News.SOURCE_ID})
-                    """
-                    )
-                    logger.debug(f"Index idx_news_source_id checked/created.")
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_user_id ON {News.TABLE_NAME} ({News.USER_ID})
-                    """
-                    )
-                    logger.debug(f"Index idx_news_user_id checked/created.")
+                    # # Attempt to add task_group_id column if it doesn't exist (for backward compatibility)
+                    # try:
+                    #     await conn.execute(f"ALTER TABLE {News.TABLE_NAME} ADD COLUMN IF NOT EXISTS {News.TASK_GROUP_ID} TEXT;")  # type: ignore[union-attr]
+                    #     logger.debug(
+                    #         f"Column {News.TASK_GROUP_ID} checked/added to {News.TABLE_NAME}."
+                    #     )
+                    # except asyncpg.PostgresError as alter_err:
+                    #     # Log error but don't fail the whole schema creation if alter fails (e.g., permissions)
+                    #     # The CREATE TABLE already defines it for new setups.
+                    #     logger.warning(
+                    #         f"Could not ALTER TABLE {News.TABLE_NAME} to add {News.TASK_GROUP_ID}: {alter_err}"
+                    #     )
 
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_user_id_created_at ON {News.TABLE_NAME} ({News.USER_ID}, {News.CREATED_AT} DESC)
-                    """
-                    )
-                    logger.debug(f"Index idx_news_user_id_created_at checked/created.")
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_url ON {News.TABLE_NAME} ({News.URL});")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_date ON {News.TABLE_NAME} ({News.DATE} DESC);")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_category_id ON {News.TABLE_NAME} ({News.CATEGORY_ID});")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_source_id ON {News.TABLE_NAME} ({News.SOURCE_ID});")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_user_id ON {News.TABLE_NAME} ({News.USER_ID});")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_user_id_created_at ON {News.TABLE_NAME} ({News.USER_ID}, {News.CREATED_AT} DESC);")  # type: ignore[union-attr]
 
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {ApiConfig.TABLE_NAME} (
-                            {ApiConfig.ID} SERIAL PRIMARY KEY,
-                            {ApiConfig.MODEL} TEXT NOT NULL,
-                            {ApiConfig.BASE_URL} TEXT NOT NULL,
-                            {ApiConfig.API_KEY} TEXT NOT NULL,
-                            {ApiConfig.CONTEXT} INTEGER,
-                            {ApiConfig.MAX_OUTPUT_TOKENS} INTEGER,
-                            {ApiConfig.DESCRIPTION} TEXT,
-                            {ApiConfig.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            {ApiConfig.CREATED_DATE} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            {ApiConfig.MODIFIED_DATE} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {ApiConfig.TABLE_NAME} ({ApiConfig.ID} SERIAL PRIMARY KEY, {ApiConfig.MODEL} TEXT NOT NULL, {ApiConfig.BASE_URL} TEXT NOT NULL, {ApiConfig.API_KEY} TEXT NOT NULL, {ApiConfig.CONTEXT} INTEGER, {ApiConfig.MAX_OUTPUT_TOKENS} INTEGER, {ApiConfig.DESCRIPTION} TEXT, {ApiConfig.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, {ApiConfig.CREATED_DATE} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, {ApiConfig.MODIFIED_DATE} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)")  # type: ignore[union-attr]
                     logger.debug(f"Table {ApiConfig.TABLE_NAME} checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {UserPreferences.TABLE_NAME} (
-                            {UserPreferences.KEY} TEXT NOT NULL,
-                            {UserPreferences.VALUE} TEXT,
-                            {UserPreferences.DESCRIPTION} TEXT,
-                            {UserPreferences.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            PRIMARY KEY ({UserPreferences.KEY}, {UserPreferences.USER_ID})
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {UserPreferences.TABLE_NAME} ({UserPreferences.KEY} TEXT NOT NULL, {UserPreferences.VALUE} TEXT, {UserPreferences.DESCRIPTION} TEXT, {UserPreferences.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, PRIMARY KEY ({UserPreferences.KEY}, {UserPreferences.USER_ID}))")  # type: ignore[union-attr]
                     logger.debug(f"Table {UserPreferences.TABLE_NAME} checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {Chats.TABLE_NAME} (
-                            {Chats.ID} BIGSERIAL PRIMARY KEY,
-                            {Chats.TITLE} TEXT NOT NULL,
-                            {Chats.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            {Chats.CREATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            {Chats.UPDATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {Chats.TABLE_NAME} ({Chats.ID} BIGSERIAL PRIMARY KEY, {Chats.TITLE} TEXT NOT NULL, {Chats.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, {Chats.CREATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, {Chats.UPDATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)")  # type: ignore[union-attr]
                     logger.debug(f"Table {Chats.TABLE_NAME} checked/created.")
 
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {Messages.TABLE_NAME} (
-                            {Messages.ID} BIGSERIAL PRIMARY KEY,
-                            {Messages.CHAT_ID} BIGINT NOT NULL,
-                            {Messages.SENDER} TEXT NOT NULL,
-                            {Messages.CONTENT} TEXT,
-                            {Messages.TIMESTAMP} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            {Messages.SEQUENCE_NUMBER} INTEGER,
-                            FOREIGN KEY ({Messages.CHAT_ID}) REFERENCES {Chats.TABLE_NAME}({Chats.ID}) ON DELETE CASCADE
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {Messages.TABLE_NAME} ({Messages.ID} BIGSERIAL PRIMARY KEY, {Messages.CHAT_ID} BIGINT NOT NULL REFERENCES {Chats.TABLE_NAME}({Chats.ID}) ON DELETE CASCADE, {Messages.SENDER} TEXT NOT NULL, {Messages.CONTENT} TEXT, {Messages.TIMESTAMP} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, {Messages.SEQUENCE_NUMBER} INTEGER)")  # type: ignore[union-attr]
                     logger.debug(f"Table {Messages.TABLE_NAME} checked/created.")
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_messages_chat_id_sequence ON {Messages.TABLE_NAME} ({Messages.CHAT_ID}, {Messages.SEQUENCE_NUMBER});")  # type: ignore[union-attr]
 
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_messages_chat_id_sequence ON {Messages.TABLE_NAME} ({Messages.CHAT_ID}, {Messages.SEQUENCE_NUMBER})
-                    """
-                    )
-                    logger.debug(
-                        f"Index idx_messages_chat_id_sequence checked/created."
-                    )
-
-                    await conn.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {FetchHistory.TABLE_NAME} (
-                            {FetchHistory.ID} BIGSERIAL PRIMARY KEY,
-                            {FetchHistory.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE,
-                            {FetchHistory.SOURCE_ID} INTEGER NOT NULL REFERENCES {NewsSource.TABLE_NAME}({NewsSource.ID}) ON DELETE CASCADE,
-                            {FetchHistory.RECORD_DATE} DATE NOT NULL,
-                            {FetchHistory.ITEMS_SAVED_TODAY} INTEGER DEFAULT 0,
-                            {FetchHistory.LAST_UPDATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            {FetchHistory.LAST_BATCH_TASK_GROUP_ID} TEXT,
-                            UNIQUE ({FetchHistory.SOURCE_ID}, {FetchHistory.USER_ID}, {FetchHistory.RECORD_DATE})
-                        )
-                    """
-                    )
+                    await conn.execute(f"CREATE TABLE IF NOT EXISTS {FetchHistory.TABLE_NAME} ({FetchHistory.ID} BIGSERIAL PRIMARY KEY, {FetchHistory.USER_ID} INTEGER NOT NULL REFERENCES {Users.TABLE_NAME}({Users.ID}) ON DELETE CASCADE, {FetchHistory.SOURCE_ID} INTEGER NOT NULL REFERENCES {NewsSource.TABLE_NAME}({NewsSource.ID}) ON DELETE CASCADE, {FetchHistory.RECORD_DATE} DATE NOT NULL, {FetchHistory.ITEMS_SAVED_TODAY} INTEGER DEFAULT 0, {FetchHistory.LAST_UPDATED_AT} TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, {FetchHistory.LAST_BATCH_TASK_GROUP_ID} TEXT, UNIQUE ({FetchHistory.USER_ID}, {FetchHistory.SOURCE_ID}, {FetchHistory.RECORD_DATE}))")  # type: ignore[union-attr]
                     logger.debug(f"Table {FetchHistory.TABLE_NAME} checked/created.")
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_fetch_history_user_id ON {FetchHistory.TABLE_NAME} ({FetchHistory.USER_ID});")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_fetch_history_source_id ON {FetchHistory.TABLE_NAME} ({FetchHistory.SOURCE_ID});")  # type: ignore[union-attr]
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_fetch_history_date ON {FetchHistory.TABLE_NAME} ({FetchHistory.RECORD_DATE});")  # type: ignore[union-attr]
 
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_fetch_history_user_id ON {FetchHistory.TABLE_NAME} ({FetchHistory.USER_ID})
-                    """
-                    )
-                    logger.debug(f"Index idx_fetch_history_user_id checked/created.")
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_fetch_history_source_id ON {FetchHistory.TABLE_NAME} ({FetchHistory.SOURCE_ID})
-                    """
-                    )
-                    logger.debug(f"Index idx_fetch_history_source_id checked/created.")
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_fetch_history_date ON {FetchHistory.TABLE_NAME} ({FetchHistory.RECORD_DATE})
-                    """
-                    )
-                    logger.debug(f"Index idx_fetch_history_date checked/created.")
-
-                    # Add zhparser extension and config
-                    # # 1. Ensure zhparser extension exists
-                    # try:
-                    #     await conn.execute("CREATE EXTENSION IF NOT EXISTS zhparser;")
-                    #     logger.debug("Extension 'zhparser' checked/created.")
-                    # except asyncpg.exceptions.InsufficientPrivilegeError:
-                    #     logger.warning(
-                    #         "Insufficient privilege to CREATE EXTENSION zhparser. "
-                    #         "Please ensure it is manually created by a superuser if not already present."
-                    #     )
-                    # except asyncpg.PostgresError as e_ext:
-                    #     # If the extension already exists but was created by another role, etc., other errors might occur
-                    #     # But usually IF NOT EXISTS handles the "already exists" case well
-                    #     logger.warning(
-                    #         f"Notice during CREATE EXTENSION zhparser: {e_ext}. This might be okay if the extension already exists and is usable."
-                    #     )
-
-                    # # 2. Create zhparser text search configuration
-                    # zhparser_config_name = "zhparsercfg"  # Define configuration name for later use
-                    # try:
-                    #     await conn.execute(
-                    #         f"CREATE TEXT SEARCH CONFIGURATION {zhparser_config_name} (PARSER = zhparser);"
-                    #     )
-                    #     logger.info(
-                    #         f"Text search configuration '{zhparser_config_name}' created."
-                    #     )
-
-                    #     # 3. If the configuration is newly created, add mappings for it immediately
-                    #     # These mappings are important for how zhparser handles specific token types
-                    #     await conn.execute(
-                    #         f"""
-                    #         ALTER TEXT SEARCH CONFIGURATION {zhparser_config_name}
-                    #         ADD MAPPING FOR n,v,a,i,e,l WITH simple;
-                    #         """
-                    #     )
-                    #     logger.info(
-                    #         f"Mappings for n,v,a,i,e,l added to new '{zhparser_config_name}'."
-                    #     )
-
-                    # except asyncpg.exceptions.DuplicateObjectError:
-                    #     # Configuration already exists
-                    #     logger.debug(
-                    #         f"Text search configuration '{zhparser_config_name}' already exists. "
-                    #         "Assuming it's correctly configured with necessary mappings. "
-                    #         "If issues arise, ensure mappings (n,v,a,i,e,l WITH simple) are present."
-                    #     )
-                    #     # Note: If the configuration already exists, we do not execute ALTER TABLE ... ADD MAPPING again,
-                    #     # because if those mappings also already exist, it will error.
-                    #     # A more robust system might check and ensure mappings exist, but that would be more complex.
-                    #     # For typical use cases, if the configuration exists, it is usually set up correctly.
-                    # except asyncpg.exceptions.UndefinedObjectError as e_parser_undef:
-                    #     # If the zhparser extension was not successfully enabled, it will result in PARSER 'zhparser' not being found here
-                    #     logger.error(
-                    #         f"Failed to create text search configuration '{zhparser_config_name}' "
-                    #         f"because the parser 'zhparser' was not found. "
-                    #         f"Please ensure the 'zhparser' extension is properly installed and enabled. Error: {e_parser_undef}"
-                    #     )
-                    # except asyncpg.PostgresError as e_cfg:
-                    #     logger.error(
-                    #         f"An error occurred while creating or configuring text search configuration '{zhparser_config_name}': {e_cfg}"
-                    #     )
-
-                    await conn.execute(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_news_search_fts ON {News.TABLE_NAME} USING GIN (
-                            to_tsvector('zhparsercfg',
-                                COALESCE({News.TITLE}, '') || ' ' ||
-                                COALESCE({News.SUMMARY}, '') || ' ' ||
-                                COALESCE({News.SOURCE_NAME}, '') || ' ' ||
-                                COALESCE({News.CATEGORY_NAME}, '')
-                            )
-                        );
-                    """
-                    )
+                    await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_news_search_fts ON {News.TABLE_NAME} USING GIN (to_tsvector('simple', COALESCE({News.TITLE}, '') || ' ' || COALESCE({News.SUMMARY}, '') || ' ' || COALESCE({News.SOURCE_NAME}, '') || ' ' || COALESCE({News.CATEGORY_NAME}, '')));")  # type: ignore[union-attr]
                     logger.debug(
-                        f"Index idx_news_search_fts (GIN) for combined text fields using zhparsercfg checked/created."
+                        "Index idx_news_search_fts checked/created (using 'simple')."
                     )
 
-                    logger.info(
-                        "All database tables and indexes verified/created successfully."
-                    )
-
+                    logger.info("All DB tables and indexes verified/created.")
                 except asyncpg.PostgresError as e:
-                    logger.error(f"Error creating schema: {e}")
+                    logger.error(f"Error creating schema: {e}", exc_info=True)
                     raise
                 except Exception as e:
-                    logger.error(f"Unexpected error in schema creation: {e}")
+                    logger.error(
+                        f"Unexpected error in schema creation: {e}", exc_info=True
+                    )
                     raise
 
         if isinstance(conn_or_pool, asyncpg.Pool):
-            async with conn_or_pool.acquire() as conn:
+            async with conn_or_pool.acquire() as conn:  # conn is PoolConnectionProxy
                 await execute_schema(conn)
-        else:
+        else:  # conn_or_pool is AsyncpgConnection
             await execute_schema(conn_or_pool)
 
-    async def _cleanup(self):
-        """Close the database connection resource (pool or single connection)."""
+    async def _cleanup(self) -> None:
+        """Closes the database connection resource."""
         if self._db_resource:
             logger.info(f"Closing database resource ({self._connection_mode} mode)...")
             try:
-                if self._connection_mode == "pool":
+                if isinstance(
+                    self._db_resource, asyncpg.Pool
+                ):  # Check type before calling close
                     await self._db_resource.close()
                     logger.info("Database connection pool closed.")
-                elif self._connection_mode == "single":
+                elif isinstance(self._db_resource, asyncpg.Connection):  # Check type
                     await self._db_resource.close()
                     logger.info("Single database connection closed.")
+                else:
+                    logger.warning(
+                        f"DB resource type mismatch or unknown mode: {type(self._db_resource)}"
+                    )
+            except Exception as e:
+                logger.error(f"Error closing database resource: {e}", exc_info=True)
+            finally:
                 self._db_resource = None
                 self._connection_mode = None
-            except Exception as e:
-                logger.error(f"Error closing database resource: {e}")
+        else:
+            logger.info("DB resource not initialized or already cleaned up.")
 
-    def _cleanup_sync(self):
-        """Synchronous cleanup for atexit registration."""
+    def _cleanup_sync(self) -> None:
+        """Synchronous wrapper for `_cleanup()`, for `atexit`."""
         import asyncio
 
+        logger.info("Attempting synchronous cleanup for DatabaseConnectionManager...")
         try:
-
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(self._cleanup())
-            loop.close()
         except Exception as e:
-            logger.error(f"Error in _cleanup_sync: {e}")
+            logger.error(f"Error in _cleanup_sync: {e}", exc_info=True)
+        finally:
+            logger.info("Synchronous cleanup attempt finished.")
 
     @asynccontextmanager
-    async def get_db_connection_context(self) -> AsyncIterator[asyncpg.Connection]:
+    async def get_db_connection_context(
+        self,
+    ) -> AsyncIterator[Union["AsyncpgConnection", "PoolConnectionProxy"]]:
         """
         Provides an async context manager for database connections.
-        Acquires a connection from the pool in 'pool' mode, or yields the single
-        connection in 'single' mode.
+
+        Yields:
+            Union[AsyncpgConnection, PoolConnectionProxy]: An active DB connection.
+
+        Raises:
+            RuntimeError: If DB manager fails to initialize or is in invalid mode.
+            TypeError: If resource type mismatches connection mode.
         """
         if self._db_resource is None:
-
-            logger.warning(
-                "Database connection manager accessed before initialization. Attempting lazy init."
-            )
-            await self._initialize()  # Use default mode/size if not specified
+            logger.warning("DB manager accessed before init. Attempting lazy init.")
+            await self._initialize()
 
         if self._db_resource is None:
             raise RuntimeError("Database connection manager failed to initialize.")
 
         if self._connection_mode == "pool":
-
             if not isinstance(self._db_resource, asyncpg.Pool):
-                raise RuntimeError("Database resource is not a pool in 'pool' mode")
-            async with self._db_resource.acquire() as conn:
-                yield conn
-        elif self._connection_mode == "single":
-
-            if not isinstance(self._db_resource, asyncpg.Connection):
-                raise RuntimeError(
-                    "Database resource is not a connection in 'single' mode"
+                raise TypeError(
+                    f"DB resource not a Pool in 'pool' mode. Type: {type(self._db_resource)}"
                 )
-            yield self._db_resource
+            conn_proxy: Optional[PoolConnectionProxy] = None
+            try:
+                conn_proxy = await self._db_resource.acquire()
+                assert (
+                    conn_proxy is not None
+                ), "Connection proxy should not be None after acquire."
+                yield conn_proxy
+            finally:
+                if conn_proxy:
+                    await self._db_resource.release(conn_proxy)
+        elif self._connection_mode == "single":
+            if not isinstance(
+                self._db_resource, asyncpg.Connection
+            ):  # Use asyncpg.Connection
+                raise TypeError(
+                    f"DB resource not a Connection in 'single' mode. Type: {type(self._db_resource)}"
+                )
+            assert (
+                self._db_resource is not None
+            ), "DB resource should not be None in single connection mode."  # Ensure it's not None before yielding
+            yield self._db_resource  # This is AsyncpgConnection
         else:
-
-            raise RuntimeError(
-                f"Database connection manager not initialized or invalid mode: {self._connection_mode}"
-            )
+            raise RuntimeError(f"DB manager in invalid mode: {self._connection_mode}")
 
 
 _db_connection_manager: Optional[DatabaseConnectionManager] = None
 
 
 async def init_db_connection(
-    db_connection_mode: str = "pool",
-    min_size: int = 2,
-    max_size: int = 2,
+    db_connection_mode: str = "pool", min_size: int = 2, max_size: int = 2
 ) -> DatabaseConnectionManager:
-    """Initialize the database connection manager."""
+    """
+    Initializes the global database connection manager.
+
+    Args:
+        db_connection_mode (str): "pool" or "single".
+        min_size (int): Min pool size.
+        max_size (int): Max pool size.
+
+    Returns:
+        DatabaseConnectionManager: The initialized global instance.
+    """
     global _db_connection_manager
     if _db_connection_manager is None:
         _db_connection_manager = DatabaseConnectionManager()
-        await _db_connection_manager._initialize(db_connection_mode, min_size, max_size)
+    await _db_connection_manager._initialize(db_connection_mode, min_size, max_size)
     return _db_connection_manager
 
 
 def get_db_connection_manager() -> DatabaseConnectionManager:
-    """Get the database connection manager instance."""
+    """
+    Retrieves the global database connection manager instance.
+
+    Returns:
+        DatabaseConnectionManager: The global singleton instance.
+    """
     global _db_connection_manager
     if _db_connection_manager is None:
-
         _db_connection_manager = DatabaseConnectionManager()
     return _db_connection_manager
 
 
-def get_db_connection_context() -> AbstractAsyncContextManager[asyncpg.Connection]:
-    """Dependency injection helper to get a database connection context manager."""
-    manager = get_db_connection_manager()
+def get_db_connection_context() -> (
+    AbstractAsyncContextManager[Union["AsyncpgConnection", "PoolConnectionProxy"]]
+):
+    """
+    Provides a dependency-injectable async context manager for DB connections.
 
+    Returns:
+        AbstractAsyncContextManager yielding a DB connection.
+    """
+    manager = get_db_connection_manager()
     return manager.get_db_connection_context()

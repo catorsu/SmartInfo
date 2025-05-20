@@ -1,11 +1,19 @@
 """
-Message Repository Module
-Handles database operations for chat messages
+Message Repository Module for SmartInfo.
+
+This module handles all database operations related to chat messages.
+It interacts with the 'messages' table to store, retrieve, update, and
+delete individual messages associated with chat sessions.
+
+@module_purpose: To provide a persistent storage interface for chat messages,
+                 enabling the recording and retrieval of conversation history.
+@primary_consumers: `services.chat_service.ChatService`.
+@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
+                       `db.schema_constants.Messages`, `asyncpg`.
 """
 
 import logging
-import time
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional, Tuple, Any
 import asyncpg
 from datetime import datetime, timezone
 
@@ -16,7 +24,18 @@ logger = logging.getLogger(__name__)
 
 
 class MessageRepository(BaseRepository):
-    """Repository for handling chat message operations in the database."""
+    """
+    Repository for handling chat message operations in the database.
+
+    Provides methods for adding, updating, deleting, and retrieving messages
+    associated with chat sessions. Sequence numbers for messages within a chat
+    can be managed by this repository.
+
+    @class_responsibility: To encapsulate all database interactions related to
+                           the `messages` table, managing individual message data.
+    @typical_usage_pattern: Instantiated and used by `ChatService` to store and
+                            retrieve messages as part of chat interactions.
+    """
 
     async def add(
         self,
@@ -26,27 +45,42 @@ class MessageRepository(BaseRepository):
         sequence_number: Optional[int] = None,
     ) -> Optional[asyncpg.Record]:
         """
-        Add a new message to the database and return the created message data.
+        Adds a new message to a chat session in the database.
+
+        If `sequence_number` is not provided, it attempts to determine the next
+        available sequence number for the given `chat_id`.
 
         Args:
-            chat_id: The ID of the chat this message belongs to
-            sender: The role of the message sender (user, assistant, system)
-            content: The content of the message
-            sequence_number: The sequence number of the message in the conversation
+            chat_id (int): The ID of the chat session this message belongs to.
+            sender (str): The sender of the message (e.g., 'user', 'assistant').
+            content (str): The textual content of the message.
+            sequence_number (Optional[int]): The explicit sequence number for
+                this message within the chat. If `None`, the next sequence
+                number is calculated. Defaults to `None`.
 
         Returns:
-            Optional[asyncpg.Record]: An asyncpg.Record containing the newly created message's
-                                     information (including db-generated id and timestamp)
-                                     or None if creation failed.
+            Optional[asyncpg.Record]: An `asyncpg.Record` object containing all
+                                      fields of the newly created message (including
+                                      its database-generated ID and timestamp) if
+                                      successful, otherwise `None`.
+
+        Raises:
+            asyncpg.PostgresError: If a database error occurs during insertion.
+
+        Side Effects:
+            - Inserts a new record into the `messages` table.
+            - If `sequence_number` is `None`, may execute an additional query to
+              determine the next sequence number.
+            - Logs the addition of the message or any errors encountered.
         """
         try:
+            actual_sequence_number: int
             if sequence_number is None:
-                new_sequence_number = await self.get_next_sequence_number(chat_id)
-                sequence_number = (
-                    new_sequence_number
-                    if new_sequence_number is not None
-                    else Messages.DEFAULT_SEQUENCE_NUMBER
-                )
+                next_seq = await self.get_next_sequence_number(chat_id)
+                # get_next_sequence_number returns Messages.DEFAULT_SEQUENCE_NUMBER (0) if no messages.
+                actual_sequence_number = next_seq
+            else:
+                actual_sequence_number = sequence_number
 
             current_time = datetime.now(timezone.utc)
 
@@ -55,35 +89,42 @@ class MessageRepository(BaseRepository):
                     {Messages.CHAT_ID}, {Messages.SENDER}, {Messages.CONTENT},
                     {Messages.TIMESTAMP}, {Messages.SEQUENCE_NUMBER}
                 ) VALUES ($1, $2, $3, $4, $5)
-                RETURNING *
+                RETURNING *  -- Returns all columns of the inserted row
             """
-            params = (chat_id, sender, content, current_time, sequence_number)
+            params: Tuple[Any, ...] = (
+                chat_id,
+                sender,
+                content,
+                current_time,
+                actual_sequence_number,
+            )
 
-            # Use _fetchone instead of conn.fetchrow
             new_message_record = await self._fetchone(query_str, params)
 
             if new_message_record:
+                # Accessing ID using the constant, assuming it's lowercase in the record key
+                msg_id_key = Messages.ID.lower()
                 logger.info(
-                    f"Added message with ID {new_message_record[Messages.ID.lower()]} to chat {chat_id}"
+                    f"Added message with ID {new_message_record[msg_id_key]} to chat {chat_id}"
                 )
                 return new_message_record
             else:
                 logger.error(
-                    f"Failed to add message for chat {chat_id}, no record returned."
+                    f"Failed to add message for chat {chat_id}, no record returned after insert."
                 )
-                return None
+                return None  # Should ideally not happen if RETURNING * is used and insert is successful
 
         except asyncpg.PostgresError as e:
             logger.error(
                 f"Failed to add message for chat {chat_id}: {str(e)}", exc_info=True
             )
-            return None
+            raise
         except Exception as e:
             logger.error(
                 f"Unexpected error adding message for chat {chat_id}: {str(e)}",
                 exc_info=True,
             )
-            return None
+            raise
 
     async def update(
         self,
@@ -92,211 +133,320 @@ class MessageRepository(BaseRepository):
         sequence_number: Optional[int] = None,
     ) -> bool:
         """
-        Update an existing message.
+        Updates an existing message in the database.
+
+        Allows updating the `content` and/or `sequence_number` of a message.
 
         Args:
-            message_id: The ID of the message to update
-            content: The new content of the message (optional)
-            sequence_number: The new sequence number (optional)
+            message_id (int): The ID of the message to update.
+            content (Optional[str]): The new content for the message. If `None`,
+                content is not changed.
+            sequence_number (Optional[int]): The new sequence number for the
+                message. If `None`, sequence number is not changed.
 
         Returns:
-            bool: True if update was successful, False otherwise
+            bool: `True` if the update was successful (one row affected),
+                  `False` otherwise (e.g., message not found or no fields
+                  were specified for update).
+
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Updates a record in the `messages` table if found.
+            - Logs the update status or any errors.
         """
+        updates: Dict[str, Any] = {}
+        params_list: List[Any] = []
+
+        if content is not None:
+            updates[Messages.CONTENT] = content
+        if sequence_number is not None:
+            updates[Messages.SEQUENCE_NUMBER] = sequence_number
+
+        if not updates:
+            logger.warning(f"No update data provided for message ID {message_id}.")
+            return False  # Or True, if no change is considered a success
+
+        set_clauses = []
+        param_idx = 1
+        for field, value in updates.items():
+            set_clauses.append(f"{field} = ${param_idx}")
+            params_list.append(value)
+            param_idx += 1
+
+        params_list.append(message_id)  # For WHERE clause
+
+        set_clause_str = ", ".join(set_clauses)
+        query_str = f"""
+            UPDATE {Messages.TABLE_NAME}
+            SET {set_clause_str}
+            WHERE {Messages.ID} = ${param_idx}
+        """
+        final_params = tuple(params_list)
+
         try:
-            updates = {}
-            params = []
-            param_index = 1
-
-            if content is not None:
-                updates[Messages.CONTENT] = f"${param_index}"
-                params.append(content)
-                param_index += 1
-            if sequence_number is not None:
-                updates[Messages.SEQUENCE_NUMBER] = f"${param_index}"
-                params.append(sequence_number)
-                param_index += 1
-
-            if not updates:
-                logger.warning("No update data provided for message update")
-                return False
-
-            set_clause_str = ", ".join(
-                f"{field} = {placeholder}" for field, placeholder in updates.items()
-            )
-            query_str = f"""
-                UPDATE {Messages.TABLE_NAME}
-                SET {set_clause_str}
-                WHERE {Messages.ID} = ${param_index}
-            """
-            params.append(message_id)
-
-            status = await self._execute(query_str, tuple(params))
-            updated = status is not None and status.startswith("UPDATE 1")
+            status = await self._execute(query_str, final_params)
+            updated = status is not None and status.lower().startswith("update 1")
             if updated:
-                logger.info(f"Updated message with ID {message_id}")
+                logger.info(f"Updated message with ID {message_id}.")
             else:
                 logger.warning(
-                    f"Update command for message ID {message_id} executed but status was '{status}'."
+                    f"Update command for message ID {message_id} executed but status was '{status}'. "
+                    "Message might not exist or no effective change was made."
                 )
             return updated
-
         except asyncpg.PostgresError as e:
-            logger.error(f"Failed to update message {message_id}: {str(e)}")
-            return False
+            logger.error(
+                f"Failed to update message {message_id}: {str(e)}", exc_info=True
+            )
+            raise
         except Exception as e:
-            logger.error(f"Unexpected error updating message {message_id}: {str(e)}")
-            return False
+            logger.error(
+                f"Unexpected error updating message {message_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise
 
     async def delete(self, message_id: int) -> bool:
         """
-        Delete a message by its ID.
+        Deletes a message by its ID from the database.
 
         Args:
-            message_id: The ID of the message to delete
+            message_id (int): The ID of the message to delete.
 
         Returns:
-            bool: True if deletion was successful, False otherwise
+            bool: `True` if the deletion was successful (one row affected),
+                  `False` otherwise (e.g., message not found).
+
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Deletes a record from the `messages` table.
+            - Logs the deletion status or any errors.
         """
+        query_str = f"DELETE FROM {Messages.TABLE_NAME} WHERE {Messages.ID} = $1"
+        params = (message_id,)
         try:
-            query_str = f"DELETE FROM {Messages.TABLE_NAME} WHERE {Messages.ID} = $1"
-
-            status = await self._execute(query_str, (message_id,))
-            deleted = status is not None and status.startswith("DELETE 1")
-
+            status = await self._execute(query_str, params)
+            deleted = status is not None and status.lower().startswith("delete 1")
             if deleted:
-                logger.info(f"Deleted message with ID {message_id}")
+                logger.info(f"Deleted message with ID {message_id}.")
             else:
                 logger.warning(
-                    f"Delete command for message ID {message_id} executed but status was '{status}'."
+                    f"Delete command for message ID {message_id} executed but status was '{status}'. "
+                    "Message might not exist."
                 )
             return deleted
-
         except asyncpg.PostgresError as e:
-            logger.error(f"Failed to delete message {message_id}: {str(e)}")
-            return False
+            logger.error(
+                f"Failed to delete message {message_id}: {str(e)}", exc_info=True
+            )
+            raise
         except Exception as e:
-            logger.error(f"Unexpected error deleting message {message_id}: {str(e)}")
-            return False
+            logger.error(
+                f"Unexpected error deleting message {message_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise
 
     async def delete_by_chat_id(self, chat_id: int) -> bool:
         """
-        Delete all messages associated with a chat.
+        Deletes all messages associated with a specific chat ID.
 
         Args:
-            chat_id: The ID of the chat whose messages should be deleted
+            chat_id (int): The ID of the chat whose messages are to be deleted.
 
         Returns:
-            bool: True if deletion was successful, False otherwise
-        """
-        try:
-            query_str = (
-                f"DELETE FROM {Messages.TABLE_NAME} WHERE {Messages.CHAT_ID} = $1"
-            )
+            bool: `True` if the delete command was executed successfully (regardless
+                  of how many rows were affected, as it could be 0 if the chat
+                  had no messages). `False` only if a database error occurs.
 
-            status = await self._execute(query_str, (chat_id,))
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Deletes multiple records from the `messages` table.
+            - Logs the execution status or any errors.
+        """
+        query_str = f"DELETE FROM {Messages.TABLE_NAME} WHERE {Messages.CHAT_ID} = $1"
+        params = (chat_id,)
+        try:
+            status = await self._execute(query_str, params)
+            # DELETE command returns "DELETE <count>".
+            # We consider it successful if no DB error occurred.
             logger.info(
                 f"Executed delete for messages in chat {chat_id}. Status: {status}"
             )
-            return True
-
+            return True  # Indicates command execution success
         except asyncpg.PostgresError as e:
-            logger.error(f"Failed to delete messages for chat {chat_id}: {str(e)}")
-            return False
+            logger.error(
+                f"Failed to delete messages for chat {chat_id}: {str(e)}", exc_info=True
+            )
+            raise
         except Exception as e:
             logger.error(
-                f"Unexpected error deleting messages for chat {chat_id}: {str(e)}"
+                f"Unexpected error deleting messages for chat {chat_id}: {str(e)}",
+                exc_info=True,
             )
-            return False
+            raise
 
     async def get_by_id(self, message_id: int) -> Optional[asyncpg.Record]:
         """
-        Get a message by its ID.
+        Retrieves a specific message by its ID.
 
         Args:
-            message_id: The ID of the message to retrieve
+            message_id (int): The ID of the message to retrieve.
 
         Returns:
-            Optional[asyncpg.Record]: An asyncpg.Record containing the message information or None if not found
-        """
-        try:
-            query_str = f"""
-                SELECT {Messages.ID}, {Messages.CHAT_ID}, {Messages.SENDER}, 
-                       {Messages.CONTENT}, {Messages.TIMESTAMP}, {Messages.SEQUENCE_NUMBER}
-                FROM {Messages.TABLE_NAME} WHERE {Messages.ID} = $1
-            """
-            return await self._fetchone(query_str, (message_id,))
+            Optional[asyncpg.Record]: An `asyncpg.Record` object containing the
+                                      message details if found, otherwise `None`.
 
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Executes a SELECT query against the `messages` table.
+            - Logs errors if any occur.
+        """
+        query_str = f"""
+            SELECT {Messages.ID}, {Messages.CHAT_ID}, {Messages.SENDER},
+                   {Messages.CONTENT}, {Messages.TIMESTAMP}, {Messages.SEQUENCE_NUMBER}
+            FROM {Messages.TABLE_NAME} WHERE {Messages.ID} = $1
+        """
+        params = (message_id,)
+        try:
+            return await self._fetchone(query_str, params)
+        except asyncpg.PostgresError as e:
+            logger.error(f"Failed to get message {message_id}: {str(e)}", exc_info=True)
+            raise
         except Exception as e:
-            logger.error(f"Failed to get message {message_id}: {str(e)}")
-            return None
+            logger.error(
+                f"Unexpected error getting message {message_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise
 
     async def get_by_chat_id(self, chat_id: int) -> List[asyncpg.Record]:
         """
-        Get all messages for a specific chat, ordered by sequence number.
+        Retrieves all messages for a specific chat session, ordered by their
+        sequence number in ascending order.
 
         Args:
-            chat_id: The ID of the chat whose messages to retrieve
+            chat_id (int): The ID of the chat session.
 
         Returns:
-            List[asyncpg.Record]: A list of asyncpg.Records, each containing a message's information
-        """
-        try:
-            query_str = f"""
-                SELECT {Messages.ID}, {Messages.CHAT_ID}, {Messages.SENDER}, 
-                       {Messages.CONTENT}, {Messages.TIMESTAMP}, {Messages.SEQUENCE_NUMBER}
-                FROM {Messages.TABLE_NAME} 
-                WHERE {Messages.CHAT_ID} = $1
-                ORDER BY {Messages.SEQUENCE_NUMBER} ASC
-            """
-            return await self._fetchall(query_str, (chat_id,))
+            List[asyncpg.Record]: A list of `asyncpg.Record` objects, each
+                                  representing a message. Returns an empty list
+                                  if no messages are found for the chat.
 
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Executes a SELECT query against the `messages` table.
+            - Logs errors if any occur.
+        """
+        query_str = f"""
+            SELECT {Messages.ID}, {Messages.CHAT_ID}, {Messages.SENDER},
+                   {Messages.CONTENT}, {Messages.TIMESTAMP}, {Messages.SEQUENCE_NUMBER}
+            FROM {Messages.TABLE_NAME}
+            WHERE {Messages.CHAT_ID} = $1
+            ORDER BY {Messages.SEQUENCE_NUMBER} ASC, {Messages.TIMESTAMP} ASC
+        """
+        params = (chat_id,)
+        try:
+            return await self._fetchall(query_str, params)
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Failed to get messages for chat {chat_id}: {str(e)}", exc_info=True
+            )
+            raise
         except Exception as e:
-            logger.error(f"Failed to get messages for chat {chat_id}: {str(e)}")
-            return []
+            logger.error(
+                f"Unexpected error getting messages for chat {chat_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise
 
     async def get_chat_message_count(self, chat_id: int) -> int:
         """
-        Get the count of messages in a specific chat.
+        Gets the total count of messages in a specific chat session.
 
         Args:
-            chat_id: The ID of the chat whose message count to retrieve
+            chat_id (int): The ID of the chat session.
 
         Returns:
-            int: The number of messages in the chat
-        """
-        try:
-            query_str = f"SELECT COUNT(*) FROM {Messages.TABLE_NAME} WHERE {Messages.CHAT_ID} = $1"
-            # Use _fetchone
-            record = await self._fetchone(query_str, (chat_id,))
-            count = record[0] if record else 0
-            return count if count is not None else 0
+            int: The total number of messages in the chat. Returns 0 if an
+                 error occurs or no messages are found.
 
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Executes a SELECT COUNT(*) query.
+            - Logs errors if any occur.
+        """
+        query_str = (
+            f"SELECT COUNT(*) FROM {Messages.TABLE_NAME} WHERE {Messages.CHAT_ID} = $1"
+        )
+        params = (chat_id,)
+        try:
+            count = await self._fetchval(query_str, params)
+            return count if count is not None else 0
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Failed to get message count for chat {chat_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise  # Or return 0
         except Exception as e:
-            logger.error(f"Failed to get message count for chat {chat_id}: {str(e)}")
-            return 0
+            logger.error(
+                f"Unexpected error getting message count for chat {chat_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise  # Or return 0
 
     async def get_next_sequence_number(self, chat_id: int) -> int:
         """
-        Get the next sequence number for a message in a specific chat.
+        Determines the next available sequence number for a new message in a chat.
+
+        It finds the maximum existing sequence number for the given `chat_id`
+        and returns that number incremented by one. If no messages exist for
+        the chat, it returns `Messages.DEFAULT_SEQUENCE_NUMBER` (typically 0).
 
         Args:
-            chat_id: The ID of the chat
+            chat_id (int): The ID of the chat session.
 
         Returns:
-            int: The next sequence number (max existing + 1) or DEFAULT_SEQUENCE_NUMBER if no messages exist
-        """
-        try:
-            query_str = f"SELECT MAX({Messages.SEQUENCE_NUMBER}) FROM {Messages.TABLE_NAME} WHERE {Messages.CHAT_ID} = $1"
-            # Use _fetchone
-            record = await self._fetchone(query_str, (chat_id,))
-            max_sequence = record[0] if record and record[0] is not None else None
+            int: The next sequence number to be used for a new message.
 
-            if max_sequence is None:
+        Raises:
+            asyncpg.PostgresError: If a database error occurs.
+
+        Side Effects:
+            - Executes a SELECT MAX(...) query.
+            - Logs errors if any occur.
+        """
+        query_str = f"SELECT MAX({Messages.SEQUENCE_NUMBER}) FROM {Messages.TABLE_NAME} WHERE {Messages.CHAT_ID} = $1"
+        params = (chat_id,)
+        try:
+            max_sequence = await self._fetchval(query_str, params)
+
+            if max_sequence is None:  # No messages yet, or MAX returned NULL
                 return Messages.DEFAULT_SEQUENCE_NUMBER
             else:
-                return (max_sequence or 0) + 1
+                return int(max_sequence) + 1  # Ensure it's int before adding
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Failed to get next sequence number for chat {chat_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise  # Or return default on error
         except Exception as e:
             logger.error(
-                f"Failed to get next sequence number for chat {chat_id}: {str(e)}"
+                f"Unexpected error getting next sequence number for chat {chat_id}: {str(e)}",
+                exc_info=True,
             )
-            return Messages.DEFAULT_SEQUENCE_NUMBER
+            raise  # Or return default
