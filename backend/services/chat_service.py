@@ -75,9 +75,6 @@ class ChatService:
 
     async def create_chat(self, chat_data: ChatCreate, user_id: int) -> Chat:
         """Create a new chat session for a specific user."""
-        # Ensure user_id from ChatCreate matches the authenticated user's ID
-        if chat_data.user_id != user_id:
-            raise ValueError("User ID in chat data does not match authenticated user.")
 
         chat_id = await self._chat_repo.add(title=chat_data.title, user_id=user_id)
         if chat_id is None:
@@ -94,9 +91,6 @@ class ChatService:
         self, chat_id: int, chat_data: ChatCreate, user_id: int
     ) -> Optional[Chat]:
         """Update a chat session belonging to a specific user."""
-        # Ensure user_id from ChatCreate matches the authenticated user's ID
-        if chat_data.user_id != user_id:
-            raise ValueError("User ID in chat data does not match authenticated user.")
 
         # The repository's update method now handles the user_id check
         success = await self._chat_repo.update(
@@ -127,21 +121,31 @@ class ChatService:
 
     async def get_message_by_id(self, message_id: int) -> Optional[Message]:
         """Get a message by ID"""
-        message = await self._message_repo.get_by_id(message_id)
-        if not message:
+        message_record = await self._message_repo.get_by_id(message_id)
+        if not message_record:
             return None
-        return Message.model_validate(dict(message))  # Use model_validate
+        return Message.model_validate(dict(message_record))  # Use model_validate
 
     async def create_message(self, message: MessageCreate) -> Message:
         """Create a new message. User context is implicit via chat_id ownership check in process_question."""
         # NOTE: We rely on process_question to verify chat_id ownership before calling this.
         # If create_message could be called directly from an endpoint, add user_id check here.
-        created_message_data = await self._message_repo.add(
-            chat_id=message.chat_id,
-            sender=message.sender,
-            content=message.content,
-            sequence_number=message.sequence_number,
-        )
+
+        if message.sequence_number is not None:
+            created_message_data = await self._message_repo.add(
+                chat_id=message.chat_id,
+                sender=message.sender,
+                content=message.content,
+                sequence_number=message.sequence_number,
+            )
+        else:
+            # Rely on the repository to generate the sequence number if not provided
+            created_message_data = await self._message_repo.add(
+                chat_id=message.chat_id,
+                sender=message.sender,
+                content=message.content,
+                # sequence_number argument is omitted here to use repository default
+            )
 
         if created_message_data is None:
             error_msg = f"Failed to save message to database or retrieve it afterwards for chat {message.chat_id}."
@@ -245,9 +249,12 @@ class ChatService:
             error_msg = f"No valid LLM API key found or LLM client could not be initialized for user {user_id}."
             logger.error(error_msg)
             error_response_content = "Sorry, I cannot process your request. No valid LLM API key is configured or the LLM client could not be initialized."
-            _ = await self.create_message(
+            await self.create_message(
                 MessageCreate(
-                    chat_id=chat_id, sender="assistant", content=error_response_content
+                    chat_id=chat_id,
+                    sender="assistant",
+                    content=error_response_content,
+                    sequence_number=None,
                 )
             )
             yield error_response_content
@@ -274,9 +281,12 @@ class ChatService:
             # Yield an error message to the client
             yield f"Sorry, an error occurred while communicating with the LLM: {str(e)}"
             # Optionally save this error as an assistant message
-            _ = await self.create_message(
+            await self.create_message(
                 MessageCreate(
-                    chat_id=chat_id, sender="assistant", content=f"LLM Error: {str(e)}"
+                    chat_id=chat_id,
+                    sender="assistant",
+                    content=f"LLM Error: {str(e)}",
+                    sequence_number=None,
                 )
             )
             return  # Stop further processing
@@ -296,6 +306,7 @@ class ChatService:
                             chat_id=chat_id,
                             sender="assistant",
                             content=full_assistant_response,
+                            sequence_number=None,  # Let the repository handle this
                         )
                         await self.create_message(assistant_message_create)
                         logger.info(
@@ -319,13 +330,12 @@ class ChatService:
                 f"LLM generated an empty response for chat {chat_id}, user {user_id}. Nothing to save."
             )
             # Optionally, save an "empty response" message or handle as needed
-            _ = await self.create_message(
+            await self.create_message(
                 MessageCreate(
                     chat_id=chat_id,
                     sender="assistant",
                     content="[LLM returned an empty response]",
+                    sequence_number=None,  # Let the repository handle this
                 )
             )
             yield "[LLM returned an empty response]"
-
-    # _get_user_llm_client method removed and logic inlined into process_question

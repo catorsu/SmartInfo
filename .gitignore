@@ -67,9 +67,9 @@ htmlcov/
 pytest.ini
 
 # Test data
-test*.py
-test_*.py
-tests/
+# test*.py
+# test_*.py
+# tests/
 __tests__/
 clear_redis_key.py
 mcptestconfig.json
