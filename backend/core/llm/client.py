@@ -10,14 +10,6 @@ Key Components/Exports:
     - LLMClientBase: Abstract base class defining the LLM client interface.
     - AsyncLLMClient: Asynchronous client using `openai.AsyncOpenAI`.
     - SyncLLMClient: Synchronous client using `openai.OpenAI`.
-
-@module_purpose: To provide a standardized way to interact with various
-                 OpenAI-compatible LLM services, abstracting away the direct
-                 API client usage and offering a consistent interface for
-                 the rest of the SmartInfo backend.
-@primary_consumers: `core.llm.pool.LLMClientPool`, services requiring direct
-                    LLM interaction (though pool usage is preferred).
-@primary_dependencies: `openai` library.
 """
 
 import abc
@@ -58,11 +50,6 @@ class LLMClientBase(abc.ABC):
     that interact with Large Language Models. It handles shared configuration
     such as API endpoint details, model preferences, and timeout settings.
     Subclasses must implement methods for actual client creation and API calls.
-
-    @class_responsibility: Define a contract for LLM client implementations and
-                           manage shared client configuration.
-    @typical_usage_pattern: Subclassed by `AsyncLLMClient` and `SyncLLMClient`.
-                            Not instantiated directly.
 
     Attributes:
         base_url (str): The base URL of the LLM API endpoint.
@@ -297,38 +284,6 @@ class AsyncLLMClient(LLMClientBase):
     It is suitable for use in asynchronous applications (e.g., FastAPI).
     The client can be used as an asynchronous context manager.
 
-    @class_responsibility: Provide a standardized asynchronous interface for making
-                           API calls to LLMs, handling request/response lifecycle
-                           and leveraging `AsyncOpenAI` capabilities.
-    @typical_usage_pattern: Instantiated by `LLMClientPool` or directly.
-                           Used with `async with` for automatic setup/teardown,
-                           or by calling methods with `await` (client initialization
-                           is automatic on first call).
-
-                           Using `async with` (recommended for managing client lifecycle):
-
-                           Style 1 (instantiate then use in context):
-                           ```python
-                           client_instance = AsyncLLMClient(base_url="...", api_key="...")
-                           async with client_instance:
-                               response = await client_instance.get_completion_content(...)
-                           # client_instance is closed here
-                           ```
-
-                           Style 2 (instantiate directly in context manager statement - often preferred):
-                           ```python
-                           async with AsyncLLMClient(base_url="...", api_key="...") as client:
-                               response = await client.get_completion_content(...)
-                           # client is closed here
-                           ```
-
-                           # Manual usage
-                           client = AsyncLLMClient(base_url="...", api_key="...")
-                           try:
-                               response = await client.get_completion_content(...)
-                           finally:
-                               await client.close() # Important to close manually
-                           ```
     Attributes:
         _client (Optional[AsyncOpenAI]): The underlying `openai.AsyncOpenAI`
             client instance. Inherited from `LLMClientBase` but specifically typed.
@@ -443,7 +398,7 @@ class AsyncLLMClient(LLMClientBase):
                 - 'role' (str): The role of the message sender (e.g., 'system',
                   'user', 'assistant').
                 - 'content' (str): The content of the message.
-                Example: `[{\"role\": \"user\", \"content\": \"Hello!\"}]`
+                Example: `[{"role": "user", "content": "Hello!"}]`
             model (Optional[str]): The specific LLM model to use for this request
                 (e.g., "gpt-4", "claude-3-opus-20240229"). If None,
                 the client's `default_model` is used.
@@ -576,7 +531,7 @@ class AsyncLLMClient(LLMClientBase):
                 - 'role' (str): The role of the message sender (e.g., 'system',
                   'user', 'assistant').
                 - 'content' (str): The content of the message.
-                Example: `[{\"role\": \"user\", \"content\": \"Tell me a story.\"}]`
+                Example: `[{"role": "user", "content": "Tell me a story."}]`
             model (Optional[str]): The specific LLM model to use for this request
                 (e.g., "gpt-4", "claude-3-opus-20240229"). If None,
                 the client's `default_model` is used.
@@ -717,27 +672,6 @@ class SyncLLMClient(LLMClientBase):
     errors are disabled. Retries should be handled by the caller or by adjusting
     this client's configuration if needed.
 
-    @class_responsibility: Provide a standardized synchronous interface for making
-                           API calls to LLMs, handling request/response lifecycle
-                           and leveraging `OpenAI` capabilities.
-    @typical_usage_pattern: Instantiated by `LLMClientPool` or directly.
-                           Used with `with` for automatic setup/teardown,
-                           or by calling methods (client initialization
-                           is automatic on first call).
-                           Example:
-                           ```python
-                           # Using context manager (recommended)
-                           client = SyncLLMClient(base_url="...", api_key="...")
-                           with client:
-                               response = client.get_completion_content(...)
-
-                           # Manual usage
-                           client = SyncLLMClient(base_url="...", api_key="...")
-                           try:
-                               response = client.get_completion_content(...)
-                           finally:
-                               client.close() # Important to close manually
-                           ```
     Attributes:
         _client (Optional[OpenAI]): The underlying `openai.OpenAI` client instance.
             Inherited from `LLMClientBase` but specifically typed.
@@ -853,7 +787,7 @@ class SyncLLMClient(LLMClientBase):
                 - 'role' (str): The role of the message sender (e.g., 'system',
                   'user', 'assistant').
                 - 'content' (str): The content of the message.
-                Example: `[{\"role\": \"user\", \"content\": \"Hello!\"}]`
+                Example: `[{"role": "user", "content": "Hello!"}]`
             model (Optional[str]): The specific LLM model to use for this request
                 (e.g., "gpt-3.5-turbo"). If None, the client's `default_model`
                 is used.
@@ -973,7 +907,7 @@ class SyncLLMClient(LLMClientBase):
                 the conversation history or prompt. Each dictionary must contain:
                 - 'role' (str): The role of the message sender.
                 - 'content' (str): The content of the message.
-                Example: `[{\"role\": \"user\", \"content\": \"Recite the alphabet.\"}]`
+                Example: `[{"role": "user", "content": "Recite the alphabet."}]`
             model (Optional[str]): The specific LLM model to use. If None,
                 the client's `default_model` is used.
             max_output_tokens (Optional[int]): Max tokens for the response. If None,

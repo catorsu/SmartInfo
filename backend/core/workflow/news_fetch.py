@@ -1,14 +1,24 @@
 """
-Workflow for fetching news.
+News Fetching and Processing Workflow for SmartInfo.
+
+This module orchestrates the process of fetching news content from a given URL,
+extracting relevant article links, crawling those articles, and then using
+Large Language Models (LLMs) to summarize the content and generate fact-based titles.
+It is designed to be used within background tasks (e.g., Celery) and provides
+progress reporting capabilities.
+
+Key Components/Exports:
+  - fetch_news: The main public function that drives the entire news fetching
+                and summarization workflow for a single source URL.
 """
 
 import json
 import logging
 import time
-from typing import Callable, Dict, List, Optional, Tuple, Union
-from urllib.parse import urljoin
+from typing import Callable, Dict, List, Optional, Tuple, Union, Awaitable
+from urllib.parse import urljoin, urlparse
 
-from core.llm.pool import LLMClientPool
+from core.llm.client import AsyncLLMClient  # Changed from LLMClientPool
 from utils.html_utils import (
     clean_and_format_html,
     extract_metadata_combined_newspaper4k_trafilatura,
@@ -26,7 +36,6 @@ from utils.prompt import (
 from utils.text_utils import get_chunks
 from utils.token_utils import get_token_size
 from ..crawler import AiohttpCrawler, PlaywrightCrawler
-from urllib.parse import urlparse
 from background.tasks.step_codes import (
     PREPARING,
     CRAWLING,
@@ -42,198 +51,237 @@ logger = logging.getLogger(__name__)
 
 async def fetch_news(
     url: str,
-    llm_pool: LLMClientPool,
+    llm_client: AsyncLLMClient,  # Changed from llm_pool
     exclude_links: Optional[List[str]] = None,
     progress_callback: Optional[
-        Callable[[Union[int, str], float, str, int], None]
+        Callable[[Union[int, str], float, str, int], Awaitable[None]]
     ] = None,
 ) -> List[Dict[str, str]]:
     """
-    Fetch news from a given URL using a crawler and an LLM client.
+    Fetches, processes, and summarizes news articles from a given source URL.
+
+    This function orchestrates the entire workflow:
+    1. Crawls the main source URL to get its HTML content.
+    2. Cleans the HTML and converts it to Markdown.
+    3. Uses an LLM to extract potential article links from the Markdown.
+    4. Crawls each extracted article link to get its content.
+    5. Extracts metadata (title, date, content, top image) from each article.
+    6. Uses an LLM to generate a new fact-based title and a summary for each article.
+    7. Returns a list of processed articles.
 
     Args:
-        url: The URL of the news to fetch.
-        llm_pool: The LLM pool to use for fetching the news.
-        exclude_links: The links to exclude from the news.
-        progress_callback: The callback to use for updating the progress of the news fetch.
-            Accepts arguments: step, progress_percent, message, items_count=0
+        url (str): The primary URL of the news source to fetch.
+        llm_client (AsyncLLMClient): An initialized LLM client for making API calls. # Changed
+        exclude_links (Optional[List[str]]): A list of URLs to ignore.
+        progress_callback (Optional[Callable]): Async callback for progress.
 
     Returns:
-        A list of dictionaries containing the news summary.
-        Each dictionary contains the following keys:
-            - title: The title of the news.
-            - url: The URL of the news.
-            - date: The date of the news.
-            - summary: The summary of the news.
-            - content: The content of the news.
+        List[Dict[str, str]]: List of processed articles. Each dictionary contains:
+            "url", "title", "summary", "date", "content", "top_image".
+            Empty list on failure or no articles.
+
+    Raises:
+        ValueError: If the initial crawl of `url` fails.
+
+    Side Effects:
+        - HTTP requests to crawl URLs.
+        - LLM API calls for link extraction and summarization.
+        - Logs process details.
+        - Invokes `progress_callback`.
     """
     start_time = time.time()
     logger.info(f"Starting processing for URL: {url}")
 
     if progress_callback:
-        await progress_callback(CRAWLING, 10, f"Crawling page: {url}")
+        await progress_callback(CRAWLING, 10, f"Crawling page: {url}", 0)
 
-    crawler_result = None
-    logger.debug(f"Starting crawl with Playwright: {url}")
+    crawler_result: Optional[Dict[str, str]] = None
+    logger.debug(f"Starting crawl with Playwright for main source URL: {url}")
     try:
         async with PlaywrightCrawler() as crawler:
             crawler_result = await crawler.fetch_single(url)
-            logger.debug(f"Playwright crawl completed: {url}")
+        logger.debug(f"Playwright crawl completed for main source URL: {url}")
     except Exception as e:
-        logger.error(f"Playwright crawl failed: {url}, Error: {str(e)}", exc_info=True)
+        logger.error(f"Playwright crawl failed for {url}: {str(e)}", exc_info=True)
+        if progress_callback:
+            await progress_callback(
+                ERROR, 10, f"Failed to crawl main page: {str(e)}", 0
+            )
         raise ValueError(f"Failed to crawl {url}: {str(e)}")
 
     if not crawler_result or crawler_result.get("error"):
         error_msg = (
-            crawler_result.get("error", "Unknown error")
+            crawler_result.get("error", "Unknown error during crawl")
             if crawler_result
-            else "Empty result"
+            else "Empty result from crawler"
         )
-        logger.error(f"Crawl result contains error: {url}, Error: {error_msg}")
+        logger.error(f"Crawl of {url} resulted in error: {error_msg}")
+        if progress_callback:
+            await progress_callback(ERROR, 10, f"Crawl error: {error_msg}", 0)
         raise ValueError(f"Failed to crawl {url}: {error_msg}")
 
     html_content = crawler_result.get("content", "")
-
     if not html_content:
-        logger.error(f"Crawled HTML content is empty: {url}")
-        raise ValueError(f"Failed to crawl {url}")
+        logger.error(f"Crawled HTML content is empty for {url}")
+        if progress_callback:
+            await progress_callback(ERROR, 10, "Crawled page content is empty", 0)
+        raise ValueError(f"Crawled content for {url} is empty.")
 
-    logger.debug(f"Starting HTML cleaning and conversion to Markdown: {url}")
-    cleaned_markdown = _clean_and_prepare_markdown(
+    logger.debug(f"Starting HTML cleaning and conversion to Markdown for: {url}")
+    cleaned_markdown_links_str = _clean_and_prepare_markdown(
         url=url, html_content=html_content, exclude_links=exclude_links
     )
 
-    if not cleaned_markdown:
-        logger.error(f"HTML cleaning failed: {url}")
+    if not cleaned_markdown_links_str:
+        logger.error(
+            f"Markdown link preparation failed for {url}. No links to process."
+        )
+        if progress_callback:
+            await progress_callback(
+                EXTRACTING_LINKS, 20, "Content cleaning or link filtering failed", 0
+            )
         return []
 
     if progress_callback:
         await progress_callback(
-            EXTRACTING_LINKS, 20, "Extracting article links from page"
+            EXTRACTING_LINKS, 20, "Extracting article links from page content", 0
         )
 
-    token_size = get_token_size(cleaned_markdown)
-    logger.debug(f"Markdown Token count: {url}, Total {token_size} tokens")
+    token_size = get_token_size(cleaned_markdown_links_str)
+    logger.debug(
+        f"Token count for filtered Markdown links from {url}: {token_size} tokens."
+    )
 
-    markdown_chunks = [cleaned_markdown]
-    num_chunks = 1
-    if token_size > llm_pool._max_input_tokens:
-        num_chunks = (token_size // llm_pool._max_input_tokens) + 1
+    markdown_link_chunks = [cleaned_markdown_links_str]
+    # Use llm_client.max_input_tokens
+    if token_size > llm_client.max_input_tokens:
+        num_chunks = (token_size // llm_client.max_input_tokens) + 1
         logger.debug(
-            f"Content exceeds context window size, needs chunking: {url}, Divided into {num_chunks} chunks"
+            f"Filtered links string for {url} exceeds LLM context window ({token_size} > {llm_client.max_input_tokens}). "
+            f"Splitting into {num_chunks} chunks."
         )
-
         if progress_callback:
             await progress_callback(
                 EXTRACTING_LINKS,
                 25,
-                f"Page content is large, splitting into {num_chunks} parts for processing",
+                f"Link list is large, splitting into {num_chunks} parts for LLM processing.",
+                0,
             )
         try:
-
-            logger.debug(f"Starting content chunking: {url}")
-            markdown_chunks = get_chunks(cleaned_markdown, num_chunks)
+            markdown_link_chunks = get_chunks(cleaned_markdown_links_str, num_chunks)
             logger.debug(
-                f"Content chunking completed: {url}, Actually generated {len(markdown_chunks)} chunks"
+                f"Filtered links string for {url} split into {len(markdown_link_chunks)} actual chunks."
             )
         except Exception as e:
-
             logger.error(
-                f"Content chunking failed: {url}, Error: {str(e)}", exc_info=True
+                f"Link string chunking failed for {url}: {str(e)}. Processing as single chunk.",
+                exc_info=True,
             )
-            markdown_chunks = [cleaned_markdown]
-            num_chunks = 1
             if progress_callback:
                 await progress_callback(
                     EXTRACTING_LINKS,
                     25,
-                    f"Content splitting failed, will process as a single chunk: {str(e)}",
+                    f"Link string splitting failed ({str(e)}), will process as a single large chunk.",
+                    0,
                 )
 
     original_content_metadata_dict: Dict[str, Dict[str, str]] = {}
+    total_link_chunks_to_process = len(markdown_link_chunks)
+    logger.debug(
+        f"Preparing to process {total_link_chunks_to_process} link chunks for {url}."
+    )
 
-    chunk_count = len(markdown_chunks)
-    logger.debug(f"Preparing to process {chunk_count} content chunks: {url}")
-
-    for i, chunk_content in enumerate(markdown_chunks):
-        if not chunk_content.strip():
+    for i, link_chunk_content in enumerate(markdown_link_chunks):
+        if not link_chunk_content.strip():
             logger.warning(
-                f"Skipping empty chunk: {url}, Chunk index: {i+1}/{chunk_count}"
+                f"Skipping empty link chunk {i+1}/{total_link_chunks_to_process} for {url}."
             )
             continue
 
         logger.debug(
-            f"Starting to process content chunk {i+1}/{chunk_count}: {url}, Chunk size: {len(chunk_content)} bytes"
+            f"Processing link chunk {i+1}/{total_link_chunks_to_process} for {url}. Chunk size: {len(link_chunk_content)} bytes."
         )
-
-        if progress_callback and chunk_count > 1:
+        if progress_callback and total_link_chunks_to_process > 1:
+            chunk_progress = 30 + int((i / total_link_chunks_to_process) * 30)
             await progress_callback(
                 EXTRACTING_LINKS,
-                30 + (i * 10 / chunk_count),
-                f"Processing page chunk {i+1}/{chunk_count}",
+                chunk_progress,
+                f"Extracting final article links from content chunk {i+1}/{total_link_chunks_to_process}",
+                0,
             )
 
-        logger.debug(
-            f"Starting link extraction and crawling: {url}, Chunk {i+1}/{chunk_count}"
+        chunk_extracted_metadata = await _extract_and_crawl_links(
+            url, link_chunk_content, llm_client  # Pass llm_client
         )
-        sub_original_content_metadata_dict = await _extract_and_crawl_links(
-            url, chunk_content, llm_pool
-        )
-
-        if not sub_original_content_metadata_dict:
-
+        if chunk_extracted_metadata:
+            original_content_metadata_dict.update(chunk_extracted_metadata)
+            logger.debug(
+                f"Extracted and crawled {len(chunk_extracted_metadata)} articles from link chunk {i+1}/{total_link_chunks_to_process} for {url}."
+            )
+        else:
             logger.warning(
-                f"No valid links found in chunk: {url}, Chunk {i+1}/{chunk_count}"
+                f"No articles extracted or crawled from link chunk {i+1}/{total_link_chunks_to_process} for {url}."
             )
-            continue
 
-        found_count = len(sub_original_content_metadata_dict)
-        logger.debug(
-            f"Found {found_count} valid links in chunk {i+1}/{chunk_count}: {url}"
-        )
-        original_content_metadata_dict.update(sub_original_content_metadata_dict)
-
-    total_articles = len(original_content_metadata_dict)
-    logger.info(f"All chunks processed, Total {total_articles} articles found: {url}")
+    total_articles_found = len(original_content_metadata_dict)
+    logger.info(
+        f"Link extraction and crawling from all chunks for {url} complete. Found {total_articles_found} articles."
+    )
 
     if not original_content_metadata_dict:
-        logger.error(f"No valid content found: {url}")
+        logger.warning(
+            f"No valid article content found after processing all link chunks for {url}."
+        )
+        if progress_callback:
+            await progress_callback(
+                COMPLETE, 100, "No new articles found or extracted.", 0
+            )
         return []
 
     if progress_callback:
         await progress_callback(
             ANALYZING,
             60,
-            f"Found {len(original_content_metadata_dict)} articles, performing analysis and summarization",
+            f"Found {total_articles_found} articles. Starting summarization and title generation.",
+            total_articles_found,
         )
 
-    logger.info(f"Starting summarization for {total_articles} articles: {url}")
+    logger.info(
+        f"Starting summarization for {total_articles_found} articles from {url}."
+    )
     summary_result = await summarize_content(
         url=url,
         original_content_metadata_dict=original_content_metadata_dict,
-        llm_pool=llm_pool,
+        llm_client=llm_client,  # Pass llm_client
     )
 
-    summary_count = len(summary_result) if summary_result else 0
+    summarized_articles_count = len(summary_result) if summary_result else 0
     logger.info(
-        f"Summarization completed, Successfully processed {summary_count} articles: {url}"
+        f"Summarization for {url} completed. Successfully summarized {summarized_articles_count} articles."
     )
 
     if not summary_result:
-        logger.error(f"Summarization failed or result is empty: {url}")
+        logger.error(f"Summarization failed or returned empty result for {url}.")
+        if progress_callback:
+            await progress_callback(SAVING, 90, "Summarization yielded no results.", 0)
+            await progress_callback(
+                COMPLETE, 100, "Processing complete, no articles summarized.", 0
+            )
         return []
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     logger.info(
-        f"Finished processing URL: {url}, Time taken: {elapsed_time:.2f} seconds, Processed {summary_count} articles"
+        f"Finished processing URL: {url}. Time taken: {elapsed_time:.2f} seconds. "
+        f"Summarized {summarized_articles_count} articles."
     )
 
     if progress_callback:
         await progress_callback(
-            SAVING,
+            ANALYZING,
             90,
-            f"Completed extraction and summarization for {len(summary_result)} articles",
+            f"Completed summarization for {summarized_articles_count} articles. Results ready.",
+            summarized_articles_count,
         )
 
     return summary_result
@@ -243,53 +291,78 @@ def _clean_and_prepare_markdown(
     url: str, html_content: str, exclude_links: Optional[List[str]] = None
 ) -> Optional[str]:
     """
-    Clean raw HTML and convert it into Markdown format.
-    - Removes unwanted tags/styles.
-    - Normalizes links.
+    Cleans raw HTML, converts to Markdown, and then filters links to prepare content for LLM link extraction.
 
     Args:
-        url: The URL of the news.
-        html_content: The HTML content of the news.
-        exclude_links: The links to exclude from the news.
+        url (str): The base URL of the HTML content.
+        html_content (str): The raw HTML content.
+        exclude_links (Optional[List[str]]): List of URLs to exclude.
 
     Returns:
-        The cleaned and prepared markdown content.
+        Optional[str]: String of Markdown-formatted links, or None on failure.
+    Side Effects:
+        - Logs cleaning and filtering stages.
     """
     logger.debug(
-        f"Starting HTML content cleaning: {url}, HTML length: {len(html_content)} bytes"
+        f"Starting HTML content cleaning for URL: {url}. HTML length: {len(html_content)} bytes."
     )
     try:
-
-        logger.debug(f"Converting HTML to Markdown: {url}")
-        cleaned_markdown = clean_and_format_html(
+        logger.debug(f"Converting HTML to Markdown for URL: {url}")
+        full_markdown_content = clean_and_format_html(
             html_content=html_content,
             base_url=url,
             output_format="markdown",
         )
         logger.debug(
-            f"HTML conversion completed, Markdown length: {len(cleaned_markdown)} bytes"
+            f"HTML to Markdown conversion complete for {url}. Full Markdown length: {len(full_markdown_content)} bytes."
         )
 
-        logger.debug(f"Removing image links: {url}")
-        cleaned_markdown = strip_image_links(cleaned_markdown)
+        logger.debug(f"Removing image links from full Markdown for URL: {url}")
+        markdown_no_images = strip_image_links(full_markdown_content)
+        logger.debug(f"Removing JavaScript links from full Markdown for URL: {url}")
+        markdown_basics_cleaned = strip_javascript_links(markdown_no_images)
 
-        logger.debug(f"Removing JavaScript links: {url}")
-        cleaned_markdown = strip_javascript_links(cleaned_markdown)
-
-        cleaned_markdown = strip_extra_links_from_markdown(
-            cleaned_markdown, exclude_urls=exclude_links, base_url=url
+        logger.debug(
+            f"Extracting and filtering Markdown links from content of URL: {url}"
+        )
+        filtered_markdown_links_string = strip_extra_links_from_markdown(
+            raw_text=markdown_basics_cleaned,
+            exclude_urls=exclude_links,
+            base_url=url,
         )
 
-        logger.debug(f"HTML cleaning completed: {url}")
-        return cleaned_markdown
+        if filtered_markdown_links_string:
+            logger.debug(
+                f"Markdown link filtering completed for URL: {url}. "
+                f"Resulting link string length: {len(filtered_markdown_links_string)} bytes."
+            )
+        else:
+            logger.warning(
+                f"No relevant Markdown links found or extracted after filtering for URL: {url}."
+            )
+        return filtered_markdown_links_string
+
     except Exception as e:
         logger.error(
-            f"Error during HTML cleaning/formatting: {url}: {e}", exc_info=True
+            f"Error during HTML cleaning/Markdown preparation for URL {url}: {e}",
+            exc_info=True,
         )
         return None
 
 
 def build_link_extraction_prompt(url: str, markdown_content: str) -> str:
+    """
+    Constructs the prompt for the LLM to extract article links from Markdown content.
+
+    Args:
+        url (str): The base URL of the source page.
+        markdown_content (str): The Markdown content for link extraction.
+
+    Returns:
+        str: A formatted prompt string.
+    Side Effects:
+        - Logs prompt length and base URL.
+    """
     prompt = f"""
 <Base URL>
 {url}
@@ -298,22 +371,36 @@ def build_link_extraction_prompt(url: str, markdown_content: str) -> str:
 {markdown_content}
 </Markdown content>
 """
-    logger.debug(f"Building link extraction prompt, Length: {len(prompt)} bytes")
+    logger.debug(
+        f"Building link extraction prompt. Length: {len(prompt)} bytes. Base URL: {url}"
+    )
     return prompt
 
 
 def build_content_analysis_prompt(
     original_content_metadata_dict: Dict[str, Dict[str, str]],
 ) -> str:
+    """
+    Constructs the prompt for the LLM to summarize a batch of articles.
+
+    Args:
+        original_content_metadata_dict (Dict[str, Dict[str, str]]):
+            Dictionary of article URLs to metadata.
+
+    Returns:
+        str: A formatted prompt string for batch summarization. Empty if input is empty.
+    Side Effects:
+        - Logs warnings and prompt details.
+    """
     if not original_content_metadata_dict:
         logger.warning(
-            "No article metadata provided, cannot build content analysis prompt"
+            "No article metadata provided; cannot build content analysis prompt."
         )
         return ""
 
     prompt_parts: List[str] = []
     article_count = len(original_content_metadata_dict)
-    logger.debug(f"Building content analysis prompt, Total {article_count} articles")
+    logger.debug(f"Building content analysis prompt for {article_count} articles.")
 
     for article_url, data in original_content_metadata_dict.items():
         prompt_parts.append("<Article>")
@@ -324,35 +411,51 @@ def build_content_analysis_prompt(
         prompt_parts.append(data.get("content", ""))
         prompt_parts.append("</Article>\n")
 
-    prompt_parts.append(
-        "Please summarize each article in Markdown format, following the structure and style shown above."
-    )
     prompt = "\n".join(prompt_parts)
-    logger.debug(f"Content analysis prompt built, Length: {len(prompt)} bytes")
+    logger.debug(
+        f"Content analysis prompt built. Length: {len(prompt)} bytes for {article_count} articles."
+    )
     return prompt
 
 
 async def _extract_and_crawl_links(
     base_url: str,
     markdown_content: str,
-    llm_pool: LLMClientPool,
+    llm_client: AsyncLLMClient,  # Changed from llm_pool
 ) -> Dict[str, Dict[str, str]]:
     """
-    Extracts article links from Markdown using LLM and fetches sub-article content.
-    Returns a mapping from sub-URL to its extracted metadata.
+    Extracts article links from Markdown using LLM, then crawls these links.
+
+    Args:
+        base_url (str): Base URL of the original source page.
+        markdown_content (str): Markdown string of pre-filtered links.
+        llm_client (AsyncLLMClient): Initialized LLM client. # Changed
+
+    Returns:
+        Dict[str, Dict[str, str]]: Dictionary of crawled sub-article URLs to metadata.
+                                   Empty if no links extracted or crawling/metadata fails.
+    Side Effects:
+        - LLM API call for link extraction.
+        - HTTP requests via `AiohttpCrawler` for sub-articles.
+        - Logs process details and errors.
     """
     sub_original_content_metadata_dict: Dict[str, Dict[str, str]] = {}
     logger.debug(
-        f"Starting link extraction from Markdown: {base_url}, Markdown length: {len(markdown_content)} bytes"
+        f"Starting LLM-based link extraction from Markdown link string for base URL: {base_url}. "
+        f"Link string length: {len(markdown_content)} bytes."
     )
 
     try:
-
-        logger.debug(f"Building LLM prompt for link extraction: {base_url}")
+        logger.debug(
+            f"Building LLM prompt for link extraction from content related to: {base_url}"
+        )
         link_prompt = build_link_extraction_prompt(base_url, markdown_content)
 
-        logger.debug(f"Requesting LLM to identify article links in page: {base_url}")
-        links_str = await llm_pool.get_completion_content(
+        logger.debug(
+            f"Requesting LLM to identify final article links from provided Markdown links for: {base_url}"
+        )
+        # Use llm_client directly
+        links_str = await llm_client.get_completion_content(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT_EXTRACT_ARTICLE_LINKS},
                 {"role": "user", "content": link_prompt},
@@ -361,95 +464,114 @@ async def _extract_and_crawl_links(
             temperature=0.0,
         )
         logger.debug(
-            f"LLM returned raw link result, Length: {len(links_str) if links_str else 0} bytes"
+            f"LLM returned raw link string for {base_url}. Length: {len(links_str) if links_str else 0} bytes."
         )
 
-        if not links_str or not links_str.strip() or links_str.strip() == "no":
+        if not links_str or not links_str.strip() or links_str.strip().lower() == "no":
             logger.warning(
-                f"LLM found no links: {base_url}, Skipping link extraction and crawling"
+                f"LLM found no suitable article links to extract from the provided list for {base_url}. "
+                "Skipping sub-article crawling for this chunk."
             )
             return sub_original_content_metadata_dict
 
-        logger.debug(
-            f"Starting processing and normalization of LLM extracted links: {base_url}"
-        )
-        extracted_links = []
-        for link in links_str.splitlines():
-            link = link.strip()
-            if not link or link == base_url:
+        logger.debug(f"Processing and normalizing LLM-selected links for {base_url}.")
+        extracted_links: List[str] = []
+        for link_line in links_str.splitlines():
+            link = link_line.strip()
+            if not link:
                 continue
 
             normalized_url = urljoin(base_url, link)
+            parsed_normalized_url = urlparse(normalized_url)
 
-            parsed_url = urlparse(normalized_url)
-            if parsed_url.scheme and parsed_url.netloc:
-                extracted_links.append(normalized_url)
-                logger.debug(f"Extracted valid link: {normalized_url}")
+            if (
+                parsed_normalized_url.scheme in ["http", "https"]
+                and parsed_normalized_url.netloc
+            ):
+                if normalized_url != base_url:
+                    extracted_links.append(normalized_url)
+                    logger.debug(
+                        f"Validated LLM-selected link: {normalized_url} (from LLM output: {link})"
+                    )
+                else:
+                    logger.debug(
+                        f"Ignoring LLM-selected link as it matches base_url: {normalized_url}"
+                    )
             else:
-                logger.debug(f"Ignoring invalid link: {link} -> {normalized_url}")
+                logger.debug(
+                    f"Ignoring invalid or non-HTTP/S link from LLM: {link} (normalized: {normalized_url})"
+                )
 
-        if not extracted_links:
+        unique_extracted_links = sorted(list(set(extracted_links)))
+
+        if not unique_extracted_links:
             logger.warning(
-                f"No valid links found: {base_url}, Skipping link extraction and crawling"
+                f"No valid, unique article links selected by LLM after normalization for {base_url}."
             )
             return sub_original_content_metadata_dict
 
         logger.debug(
-            f"Found {len(extracted_links)} valid links, Starting crawl: {base_url}"
+            f"LLM selected {len(unique_extracted_links)} unique, valid links to crawl for {base_url}."
         )
 
         async with AiohttpCrawler() as sub_crawler:
             processed_count = 0
-            total_links = len(extracted_links)
+            total_links_to_crawl = len(unique_extracted_links)
 
             async for crawl_result in sub_crawler.process_urls(
-                extracted_links, max_retries=1
+                unique_extracted_links, max_retries=1
             ):
                 processed_count += 1
+                current_crawl_url = crawl_result.get("original_url", "Unknown URL")
                 logger.debug(
-                    f"Crawl progress: {processed_count}/{total_links} ({processed_count*100/total_links:.1f}%)"
+                    f"Sub-article crawl progress for {base_url}: {processed_count}/{total_links_to_crawl} "
+                    f"({(processed_count/total_links_to_crawl)*100:.1f}%) - Processing {current_crawl_url}"
                 )
 
                 if crawl_result.get("error") or not crawl_result.get("content"):
-                    error_msg = crawl_result.get("error", "内容为空")
-                    orig_url = crawl_result.get("original_url", "Unknown URL")
+                    error_msg = crawl_result.get("error", "Content is empty")
                     logger.warning(
-                        f"Sub-link crawl failed: {orig_url}, Error: {error_msg}"
+                        f"Sub-article crawl failed for {current_crawl_url} (from {base_url}): {error_msg}"
                     )
                     continue
 
-                sub_url = crawl_result.get(
-                    "final_url", crawl_result.get("original_url")
+                sub_article_final_url = crawl_result.get("final_url", current_crawl_url)
+                if not sub_article_final_url:
+                    logger.warning(
+                        f"URL information missing in crawl result for an article from {base_url}, skipping."
+                    )
+                    continue
+
+                logger.debug(
+                    f"Extracting metadata from HTML for sub-article: {sub_article_final_url}"
                 )
-                if not sub_url:
-                    logger.warning(
-                        "URL information missing in crawl result, skipping this result"
-                    )
-                    continue
-
-                logger.debug(f"Extracting metadata from HTML: {sub_url}")
                 structure_data = extract_metadata_combined_newspaper4k_trafilatura(
                     html_content=crawl_result["content"],
-                    base_url=sub_url,
+                    base_url=sub_article_final_url,
                 )
                 if not structure_data:
-                    logger.warning(f"Cannot extract metadata from HTML: {sub_url}")
+                    logger.warning(
+                        f"Could not extract metadata from HTML for {sub_article_final_url}."
+                    )
                     continue
 
-                title = structure_data.get("title", "无标题")
-                content_length = len(structure_data.get("content", ""))
+                title = structure_data.get("title", "Untitled Article")
+                content_len = len(structure_data.get("content", ""))
                 logger.debug(
-                    f"Successfully extracted article: {sub_url}, Title: {title}, Content length: {content_length} bytes"
+                    f"Successfully extracted metadata for: {sub_article_final_url}. Title: '{title}', Content length: {content_len} chars."
                 )
-                sub_original_content_metadata_dict[sub_url] = structure_data
+                sub_original_content_metadata_dict[sub_article_final_url] = (
+                    structure_data
+                )
 
         logger.debug(
-            f"Sub-link crawling completed: {base_url}, Successfully crawled {len(sub_original_content_metadata_dict)}/{total_links} sub-links"
+            f"Sub-article crawling and metadata extraction for {base_url} complete. "
+            f"Successfully processed {len(sub_original_content_metadata_dict)}/{total_links_to_crawl} sub-articles."
         )
 
     except Exception as e:
         logger.error(
-            f"Error during link extraction and crawling: {base_url}: {e}",
+            f"Error during LLM link extraction and sub-article crawling for {base_url}: {e}",
             exc_info=True,
         )
         return sub_original_content_metadata_dict
@@ -460,128 +582,122 @@ async def _extract_and_crawl_links(
 async def summarize_content(
     url: str,
     original_content_metadata_dict: Dict[str, Dict[str, str]],
-    llm_pool: LLMClientPool,
+    llm_client: AsyncLLMClient,  # Changed from llm_pool
 ) -> List[Dict[str, str]]:
     """
+    Summarizes a batch of articles using an LLM.
+
     Args:
-        url: The URL of the news.
-        original_content_metadata_dict: A dictionary containing the original content metadata.
-        llm_client: The LLM client to use for summarization.
-        progress_callback: Optional callback for progress updates.
+        url (str): Base URL of the original news source (for logging).
+        original_content_metadata_dict (Dict[str, Dict[str, str]]):
+            Dictionary of article URLs to metadata.
+        llm_client (AsyncLLMClient): Initialized LLM client. # Changed
 
     Returns:
-        A list of dictionaries containing the news summary.
-        Each dictionary contains the following keys:
-            - title: The title of the news.
-            - url: The URL of the news.
-            - date: The date of the news.
-            - summary: The summary of the news.
-            - content: The content of the news.
+        List[Dict[str, str]]: List of summarized articles. Each includes:
+            "url", "title", "summary", "date", "content", "top_image".
+            Empty list on failure or no articles.
+    Side Effects:
+        - LLM API calls for summarization.
+        - Logs process details and errors.
     """
     analysis_result: List[Dict[str, str]] = []
     article_count = len(original_content_metadata_dict)
 
+    if article_count == 0:
+        logger.warning(f"No articles provided for summarization from source {url}.")
+        return []
+
     logger.info(
-        f"Starting content summarization: {url}, Number of articles: {article_count}"
+        f"Starting content summarization for {article_count} articles from source: {url}"
     )
 
     analysis_prompt = build_content_analysis_prompt(original_content_metadata_dict)
+    if not analysis_prompt:
+        logger.error(
+            f"Failed to build analysis prompt for {url}, though articles were present."
+        )
+        return []
+
     prompt_tokens = get_token_size(analysis_prompt)
-    logger.debug(f"Content analysis prompt Token count: {prompt_tokens}")
+    logger.debug(f"Content analysis prompt for {url} has {prompt_tokens} tokens.")
 
     try:
-
-        if prompt_tokens > llm_pool._max_input_tokens:
-            logger.debug(
-                f"Prompt exceeds context window limit ({prompt_tokens} > {llm_pool._max_input_tokens}), needs chunking"
-            )
-            num_prompt_chunks = (prompt_tokens // llm_pool._max_input_tokens) + 1
-            logger.debug(
-                f"Planned to divide into {num_prompt_chunks} chunks for processing"
+        # Use llm_client.max_input_tokens and llm_client.max_output_tokens
+        if prompt_tokens > llm_client.max_input_tokens:
+            logger.warning(
+                f"Batch prompt for {url} exceeds LLM context window ({prompt_tokens} > {llm_client.max_input_tokens}). "
+                "Splitting articles into smaller sub-batches for summarization."
             )
 
-            chunk_maps: List[Dict[str, Dict[str, str]]] = []
-            keys = list(original_content_metadata_dict.keys())
-            total = len(keys)
-
-            if total < num_prompt_chunks:
-                logger.error(
-                    f"Token count exceeded, but number of articles ({total}) is less than number of chunks ({num_prompt_chunks}), cannot effectively chunk"
-                )
-                raise ValueError(
-                    f"Token limit exceeded, not enough content to chunk for {url}."
-                )
-
+            num_prompt_chunks = (prompt_tokens // llm_client.max_input_tokens) + 1
             logger.debug(
-                f"Each chunk will contain approximately {total // num_prompt_chunks} articles"
-            )
-            size = total // num_prompt_chunks
-            for i in range(num_prompt_chunks):
-                start = i * size
-                end = start + size if i < num_prompt_chunks - 1 else total
-                part_keys = keys[start:end]
-                if part_keys:
-                    chunk_maps.append(
-                        {k: original_content_metadata_dict[k] for k in part_keys}
-                    )
-                    logger.debug(
-                        f"Chunk {i+1} contains {len(part_keys)} articles, from index {start} to {end-1}"
-                    )
-
-            # Build separate prompts for each chunk
-            prompt_chunks = [
-                build_content_analysis_prompt(chunk_map) for chunk_map in chunk_maps
-            ]
-            logger.debug(
-                f"Created {len(prompt_chunks)} prompt chunks, preparing for batch processing: {url}"
+                f"Attempting to divide {article_count} articles into approx {num_prompt_chunks} sub-batches for {url}."
             )
 
-            for i, p_chunk in enumerate(prompt_chunks):
+            article_items = list(original_content_metadata_dict.items())
+            actual_num_chunks = min(num_prompt_chunks, article_count)
+            if actual_num_chunks <= 0:
+                actual_num_chunks = 1
+
+            articles_per_chunk = (
+                article_count + actual_num_chunks - 1
+            ) // actual_num_chunks
+
+            for i in range(actual_num_chunks):
+                start_index = i * articles_per_chunk
+                end_index = min((i + 1) * articles_per_chunk, article_count)
+                current_article_batch_items = article_items[start_index:end_index]
+
+                if not current_article_batch_items:
+                    continue
+
+                current_batch_dict = dict(current_article_batch_items)
+                chunk_prompt = build_content_analysis_prompt(current_batch_dict)
+
                 logger.debug(
-                    f"Starting to process prompt chunk {i+1}/{len(prompt_chunks)}"
+                    f"Processing sub-batch {i+1}/{actual_num_chunks} for {url} with {len(current_batch_dict)} articles. "
+                    f"Prompt tokens: {get_token_size(chunk_prompt)}"
                 )
 
-                llm_result = await llm_pool.get_completion_content(
+                # Use llm_client directly
+                llm_result_chunk = await llm_client.get_completion_content(
                     messages=[
                         {
                             "role": "system",
                             "content": SYSTEM_PROMPT_EXTRACT_SUMMARIZE_ARTICLE_BATCH,
                         },
-                        {"role": "user", "content": p_chunk},
+                        {"role": "user", "content": chunk_prompt},
                     ],
-                    max_tokens=llm_pool._max_output_tokens,
+                    max_tokens=llm_client.max_output_tokens,  # Use llm_client attribute
                     temperature=0.8,
                 )
                 logger.debug(
-                    f"Chunk {i+1} LLM returned result length: {len(llm_result)} bytes"
+                    f"Sub-batch {i+1} LLM response length: {len(llm_result_chunk)} bytes."
                 )
-
                 try:
-                    json_result = parse_json_from_text(llm_result)
-                    result_count = len(json_result) if json_result else 0
-                    logger.debug(
-                        f"Successfully parsed {result_count} article summaries from chunk {i+1}"
-                    )
-                    analysis_result.extend(json_result)
-
+                    json_chunk_result = parse_json_from_text(llm_result_chunk)
+                    if json_chunk_result:
+                        analysis_result.extend(json_chunk_result)
+                        logger.debug(
+                            f"Successfully parsed {len(json_chunk_result)} summaries from sub-batch {i+1} for {url}."
+                        )
                 except json.JSONDecodeError as je:
                     logger.error(
-                        f"Chunk {i+1} JSON parsing failed: {url}, Error location: {str(je)}"
+                        f"JSON parsing failed for sub-batch {i+1} from {url}: {str(je)}. "
+                        f"Content snippet: {llm_result_chunk[:500]}..."
                     )
-                    logger.debug(
-                        f"Raw content of failed JSON parsing: {llm_result[:500]}..."
-                    )
-                except Exception as e:
+                except Exception as e_parse:
                     logger.error(
-                        f"Error during chunk {i+1} processing: {url}: {e}",
+                        f"Error processing LLM result for sub-batch {i+1} from {url}: {e_parse}",
                         exc_info=True,
                     )
-
         else:
             logger.debug(
-                f"Prompt within Token limit, processing as single batch: {url}"
+                f"Prompt for {url} is within token limits. Processing as single batch."
             )
-            llm_result = await llm_pool.get_completion_content(
+            # Use llm_client directly
+            llm_result = await llm_client.get_completion_content(
                 messages=[
                     {
                         "role": "system",
@@ -589,59 +705,74 @@ async def summarize_content(
                     },
                     {"role": "user", "content": analysis_prompt},
                 ],
-                max_tokens=llm_pool._max_output_tokens,
+                max_tokens=llm_client.max_output_tokens,  # Use llm_client attribute
                 temperature=0.8,
             )
-            logger.debug(f"LLM returned result length: {len(llm_result)} bytes")
-
+            logger.debug(f"LLM response length for {url}: {len(llm_result)} bytes.")
             try:
                 analysis_result = parse_json_from_text(llm_result)
-                result_count = len(analysis_result) if analysis_result else 0
-                logger.debug(f"Successfully parsed {result_count} article summaries")
-
+                logger.debug(
+                    f"Successfully parsed {len(analysis_result)} summaries for {url}."
+                )
             except json.JSONDecodeError as je:
-                logger.error(f"JSON parsing failed: {url}, Error location: {str(je)}")
-                logger.debug(f"JSON解析失败的原始内容: {llm_result[:500]}...")
-            except Exception as e:
-                logger.error(f"Error during processing: {url}: {e}", exc_info=True)
+                logger.error(
+                    f"JSON parsing failed for {url}: {str(je)}. Content snippet: {llm_result[:500]}..."
+                )
+            except Exception as e_parse_single:
+                logger.error(
+                    f"Error processing LLM result for {url}: {e_parse_single}",
+                    exc_info=True,
+                )
 
+    except ValueError as ve:
+        logger.error(f"ValueError during summarization for {url}: {ve}", exc_info=True)
     except Exception as analyze_err:
-
-        logger.error(f"Error during LLM analysis: {url}: {analyze_err}", exc_info=True)
+        logger.error(
+            f"Unexpected error during LLM summarization for {url}: {analyze_err}",
+            exc_info=True,
+        )
 
     logger.debug(
-        f"Starting to process final result, currently have {len(analysis_result)} article summaries"
+        f"Preparing to merge original metadata into {len(analysis_result)} summarized articles for {url}."
     )
-    filtered_result = []
-    missing_url_count = 0
+    final_summarized_articles: List[Dict[str, str]] = []
+    missing_url_in_summary_count = 0
 
-    for result_item in analysis_result:
-        url_key = result_item.get("url", "")
-        if url_key:
+    for summarized_item in analysis_result:
+        article_url_from_summary = summarized_item.get("url")
+        if (
+            article_url_from_summary
+            and article_url_from_summary in original_content_metadata_dict
+        ):
+            original_meta = original_content_metadata_dict[article_url_from_summary]
 
-            result_item["date"] = original_content_metadata_dict.get(url_key, {}).get(
-                "date", ""
-            )
-            result_item["content"] = original_content_metadata_dict.get(
-                url_key, {}
-            ).get("content", "")
-            result_item["top_image"] = original_content_metadata_dict.get(
-                url_key, {}
-            ).get("top_image", "")
-
-            title = result_item.get("title", "Untitled")
-            summary_length = len(result_item.get("summary", ""))
+            final_item = {
+                "url": article_url_from_summary,
+                "title": summarized_item.get(
+                    "title", original_meta.get("title", "Untitled")
+                ),
+                "summary": summarized_item.get("summary", ""),
+                "date": original_meta.get("date", ""),
+                "content": original_meta.get("content", ""),
+                "top_image": original_meta.get("top_image", ""),
+            }
+            final_summarized_articles.append(final_item)
             logger.debug(
-                f"Adding article to final result: {url_key}, Title: {title}, Summary length: {summary_length} bytes"
+                f"Merged metadata for article: {article_url_from_summary}. LLM Title: '{final_item['title']}'"
             )
-            filtered_result.append(result_item)
         else:
-            missing_url_count += 1
+            missing_url_in_summary_count += 1
             logger.warning(
-                f"Ignoring result item missing URL: {result_item.get('title', 'Untitled')}"
+                f"Summarized item from LLM missing 'url' or URL '{article_url_from_summary}' "
+                f"not found in original metadata for {url}. Title: '{summarized_item.get('title', 'N/A')}'. Skipping."
             )
+
+    if missing_url_in_summary_count > 0:
+        logger.warning(
+            f"Skipped {missing_url_in_summary_count} summarized items due to missing/mismatched URLs for {url}."
+        )
 
     logger.info(
-        f"Final result processing completed: {url}, Total {len(filtered_result)} valid articles, Ignored {missing_url_count} articles without URL"
+        f"Metadata merging complete for {url}. Final count of summarized articles: {len(final_summarized_articles)}."
     )
-    return filtered_result
+    return final_summarized_articles

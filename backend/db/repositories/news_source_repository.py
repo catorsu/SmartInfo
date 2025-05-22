@@ -4,13 +4,6 @@ News Source Repository Module for SmartInfo.
 This module handles database operations for news sources, allowing users to
 define and manage the origins of their news content. It interacts with the
 `news_sources` table.
-
-@module_purpose: To provide a persistent storage interface for user-defined
-                 news sources, linking them to categories.
-@primary_consumers: `services.news_service.NewsService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.NewsSource`,
-                       `db.schema_constants.NewsCategory` (for joins), `asyncpg`.
 """
 
 import logging
@@ -29,11 +22,6 @@ class NewsSourceRepository(BaseRepository):
 
     Provides methods for adding, retrieving, updating, and deleting news
     sources for users, including associating them with news categories.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `news_sources` table.
-    @typical_usage_pattern: Instantiated and used by `NewsService` to manage
-                            news sources based on user actions.
     """
 
     async def add(
@@ -267,7 +255,8 @@ class NewsSourceRepository(BaseRepository):
             user_id (int): ID of the user.
 
         Returns:
-            Optional[asyncpg.Record]: Source details if found and owned, else `None`.
+            Optional[asyncpg.Record]: Source details (including `category_name`)
+                                      if found and owned, else `None`.
 
         Raises:
             asyncpg.PostgresError: If a database error occurs.
@@ -277,10 +266,16 @@ class NewsSourceRepository(BaseRepository):
             - Logs errors.
         """
         query_str = f"""
-            SELECT {NewsSource.ID}, {NewsSource.NAME}, {NewsSource.URL},
-                   {NewsSource.CATEGORY_ID}, {NewsSource.USER_ID}
-            FROM {NewsSource.TABLE_NAME}
-            WHERE {NewsSource.ID} = $1 AND {NewsSource.USER_ID} = $2
+            SELECT
+                ns.{NewsSource.ID}, ns.{NewsSource.NAME}, ns.{NewsSource.URL},
+                ns.{NewsSource.CATEGORY_ID}, ns.{NewsSource.USER_ID},
+                nc.{NewsCategory.NAME} as category_name
+            FROM {NewsSource.TABLE_NAME} ns
+            JOIN {NewsCategory.TABLE_NAME} nc
+                ON ns.{NewsSource.CATEGORY_ID} = nc.{NewsCategory.ID}
+            WHERE ns.{NewsSource.ID} = $1
+              AND ns.{NewsSource.USER_ID} = $2
+              AND nc.{NewsCategory.USER_ID} = $2 -- Ensure category also belongs to the user
         """
         params = (source_id, user_id)
         try:

@@ -6,16 +6,6 @@ names and column names throughout the application. Using these constants helps
 prevent typos and ensures consistency when interacting with the database,
 particularly in repository classes and SQL query construction.
 
-@module_purpose: To provide a single source of truth for database schema names,
-                 enhancing maintainability and reducing errors related to schema
-                 references.
-@primary_consumers: All repository classes in `backend.db.repositories`,
-                    database migration scripts (if any), and any service
-                    or utility that directly constructs SQL queries or
-                    references table/column names.
-@primary_dependencies: None directly, but conceptually linked to the database
-                       schema defined in `docs/backend/DATABASE_SCHEMA.md`.
-
 Key Constants & Classes:
   - Table name constants (e.g., `USERS_TABLE`, `NEWS_TABLE`).
   - Classes representing tables (e.g., `Users`, `News`), each containing

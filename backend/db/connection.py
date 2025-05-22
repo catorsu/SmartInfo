@@ -7,21 +7,6 @@ initialization of database resources (either a connection pool or a single
 connection), schema creation/verification, and graceful cleanup of connections.
 It also offers utility functions for accessing the database connection context,
 primarily for dependency injection in FastAPI.
-
-@module_purpose: To centralize and manage asynchronous database connections,
-                 ensure schema integrity on startup, and provide a consistent
-                 interface for database access throughout the application.
-@primary_consumers: FastAPI application startup (`main.py` for initialization),
-                    repository classes (`backend.db.repositories.*` via
-                    `get_db_connection_context`).
-@primary_dependencies: `asyncpg` (PostgreSQL driver), `backend.config` (for DB
-                       credentials), `backend.db.schema_constants`.
-
-Key Components/Exports:
-  - DatabaseConnectionManager: Singleton class managing the database resource.
-  - init_db_connection: Initializes the global DB connection manager instance.
-  - get_db_connection_manager: Retrieves the global DB connection manager.
-  - get_db_connection_context: Provides an async context manager for DB connections.
 """
 
 import os
@@ -58,15 +43,6 @@ class DatabaseConnectionManager:
     This class implements a singleton pattern to ensure only one instance
     manages the database connection throughout the application's lifecycle.
     It handles initialization, schema creation, and cleanup.
-
-    @class_responsibility: To provide a centralized point for managing and
-                           accessing the application's database connection(s).
-                           It ensures that the database schema is created or
-                           verified upon initialization.
-    @typical_usage_pattern: Instantiated once via `init_db_connection()`.
-                            Accessed via `get_db_connection_manager()` or
-                            `get_db_connection_context()` for obtaining
-                            connections within repositories or services.
 
     Attributes:
         _instance (Optional[DatabaseConnectionManager]): The singleton instance.

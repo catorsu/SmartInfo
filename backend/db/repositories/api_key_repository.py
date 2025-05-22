@@ -4,12 +4,6 @@ API Key Repository Module for SmartInfo.
 This module provides data access operations for the `api_config` table,
 which stores API key configurations for users. It allows for creating,
 retrieving, updating, and deleting API key settings associated with users.
-
-@module_purpose: To manage persistence and retrieval of user-specific API key
-                 configurations for interacting with external LLM services.
-@primary_consumers: `services.setting_service.SettingService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.ApiConfig`, `asyncpg`.
 """
 
 import logging
@@ -30,11 +24,6 @@ class ApiKeyRepository(BaseRepository):
     This class provides methods to interact with the `api_config` table,
     handling operations such as adding, updating, deleting, and retrieving
     API key details for users.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           user API key configurations.
-    @typical_usage_pattern: Instantiated and used by `SettingService` to manage
-                            API key data as requested by API endpoints.
     """
 
     async def add(

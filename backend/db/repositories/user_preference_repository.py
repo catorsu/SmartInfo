@@ -4,12 +4,6 @@ User Preference Repository Module for SmartInfo.
 This module handles database operations for user-specific application preferences,
 stored in the `user_preferences` table. It allows setting, retrieving, and
 deleting key-value preference pairs for users.
-
-@module_purpose: To provide a persistent storage mechanism for user-configurable
-                 settings that customize their application experience.
-@primary_consumers: `services.setting_service.SettingService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.UserPreferences`, `asyncpg`.
 """
 
 import logging
@@ -29,12 +23,6 @@ class UserPreferenceRepository(BaseRepository):
     This class provides methods to interact with the `user_preferences` table,
     handling operations such as setting (inserting or updating), retrieving,
     and deleting preferences for users.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `user_preferences` table.
-    @typical_usage_pattern: Instantiated and used by `SettingService` to manage
-                            user preferences based on API requests or application
-                            logic.
     """
 
     async def set(

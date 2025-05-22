@@ -4,12 +4,6 @@ Message Repository Module for SmartInfo.
 This module handles all database operations related to chat messages.
 It interacts with the 'messages' table to store, retrieve, update, and
 delete individual messages associated with chat sessions.
-
-@module_purpose: To provide a persistent storage interface for chat messages,
-                 enabling the recording and retrieval of conversation history.
-@primary_consumers: `services.chat_service.ChatService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.Messages`, `asyncpg`.
 """
 
 import logging
@@ -30,11 +24,6 @@ class MessageRepository(BaseRepository):
     Provides methods for adding, updating, deleting, and retrieving messages
     associated with chat sessions. Sequence numbers for messages within a chat
     can be managed by this repository.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `messages` table, managing individual message data.
-    @typical_usage_pattern: Instantiated and used by `ChatService` to store and
-                            retrieve messages as part of chat interactions.
     """
 
     async def add(

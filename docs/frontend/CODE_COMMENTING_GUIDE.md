@@ -54,9 +54,6 @@ JSDoc is the standard for documenting TypeScript and TSX code. Use `/** ... */` 
     *   `@param {PropType} propName - Description of the prop. Mark as `[propName]` if optional. Include default value if any. Explain its effect on the component.
     *   `@returns {JSX.Element}`
     *   `@example Basic JSX usage: <MyComponent title="Example" items={data} />`
-    *   **(Conceptual Tag, within `@description` or separate) `@state {StateType} stateVariableName - Description of significant internal state variables and their purpose.`**
-    *   **(Conceptual Tag, within `@description`) `@user_flow Part of the 'User Registration', 'News Display' UI flow.`**
-    *   **(Conceptual Tag, within `@description`) `@accessibility Notes on ARIA attributes used or specific accessibility considerations.`**
 *   **Example (`frontend/src/components/Chat/ChatInputBar.tsx`):**
     ```typescript
     interface ChatInputBarProps {
@@ -78,9 +75,7 @@ JSDoc is the standard for documenting TypeScript and TSX code. Use `/** ... */` 
      * @param {boolean} [loading=false] - If true, the input and send button are disabled, indicating an ongoing operation.
      *
      * @returns {JSX.Element} The rendered chat input bar.
-     *
-     * @user_flow Core component in the 'Chatting with AI' user flow.
-     *
+     * 
      * @example
      * <ChatInputBar
      *   inputValue={currentMessage}
@@ -207,8 +202,6 @@ JSDoc is the standard for documenting TypeScript and TSX code. Use `/** ... */` 
     *   Workarounds or non-standard solutions.
     *   `// TODO(username/issue_link): Description of pending work.`
     *   `// FIXME(username/issue_link): Description of bug and impact.`
-    *   `// AI_ASSUMPTION: Code relies on this non-obvious assumption.`
-    *   `// AI_WARNING: Caution for AI when refactoring this block.`
 *   **Example (within a React component):**
     ```tsx
     useEffect(() => {

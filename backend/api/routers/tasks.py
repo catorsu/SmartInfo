@@ -36,16 +36,25 @@ async def redis_message_listener(
     try:
         while True:
             # Wait for messages with a timeout to prevent blocking forever
-            message = await pubsub.get_message(timeout=1.0)
+            message = await pubsub.get_message(
+                timeout=1.0
+            )  # This timeout allows the loop to iterate
+
+            if websocket.client_state != WebSocketState.CONNECTED:
+                logger.info(
+                    f"WebSocket for {task_group_id} is no longer connected. Exiting listener loop."
+                )
+                break
+
             if message is not None and message["type"] == "message":
                 try:
-
                     update_data = json.loads(message["data"])
 
                     if websocket.client_state == WebSocketState.CONNECTED:
-
                         await ws_manager.send_update(task_group_id, update_data)
                     else:
+                        # This case might be redundant due to the check at the start of the loop,
+                        # but kept for safety if state changes between get_message and send_update.
                         logger.warning(
                             f"WebSocket for {task_group_id} disconnected before sending update: {update_data.get('event')}"
                         )
@@ -54,10 +63,10 @@ async def redis_message_listener(
                     # Cleanup task group data after sending the final message
                     if update_data.get("event") == "overall_batch_completed":
                         logger.info(
-                            f"Overall completion message received for {task_group_id}. Cleaning up metadata."
+                            f"Overall completion message received for {task_group_id}. Cleaning up metadata and listener."
                         )
                         ws_manager.cleanup_task_group_data(task_group_id)
-                        # Note: We continue the listener to handle any disconnection gracefully
+                        break  # Exit the listener loop as the task group is complete
 
                 except json.JSONDecodeError:
                     logger.error(
@@ -65,18 +74,26 @@ async def redis_message_listener(
                     )
                 except Exception as send_err:
                     logger.error(
-                        f"Error sending WebSocket update for {task_group_id}: {send_err}"
+                        f"Error sending WebSocket update for {task_group_id}: {send_err}",
+                        exc_info=True,
                     )
 
-            # Short sleep to prevent CPU spinning
-            await asyncio.sleep(0.01)
+            # No need for aggressive asyncio.sleep(0.01) here as get_message has a timeout.
+            # If get_message returns None (timeout), the loop continues and checks websocket state.
+            # A small sleep can still be useful to prevent a tight loop if get_message always times out quickly
+            # and the websocket is still connected, but 1.0s timeout on get_message is the main pacer.
+            # await asyncio.sleep(0.1) # Optional: if get_message timeout is very short.
 
     except asyncio.CancelledError:
-        logger.info(f"Redis listener for {task_group_id} cancelled.")
+        logger.info(f"Redis listener for {task_group_id} was cancelled.")
     except redis.RedisError as redis_err:
-        logger.error(f"Redis error in listener for {task_group_id}: {redis_err}")
+        logger.error(
+            f"Redis error in listener for {task_group_id}: {redis_err}", exc_info=True
+        )
+        # Loop will terminate due to exception
     except Exception as e:
         logger.exception(f"Unexpected error in Redis listener for {task_group_id}: {e}")
+        # Loop will terminate due to exception
     finally:
         logger.info(f"Exiting Redis listener loop for {task_group_id}.")
 
@@ -193,64 +210,117 @@ async def websocket_task_group_endpoint(
         )
         logger.info(f"Started Redis listener task for {task_group_id}")
 
-        try:
-            while websocket.client_state != WebSocketState.DISCONNECTED:
-                await asyncio.sleep(10)  # Check state less frequently
-        except WebSocketDisconnect:
-            logger.info(
-                f"WebSocket client disconnected explicitly from task_group_id: {task_group_id}"
+        # listener_task is created before this block
+        if listener_task:
+            await listener_task  # Wait for the listener to complete or be cancelled
+        else:
+            # This case should ideally not occur if setup logic is correct
+            logger.error(
+                f"Listener task was not properly created for {task_group_id}. Closing WebSocket."
+            )
+            await websocket.close(
+                code=1011, reason="Internal error: Listener task setup failed."
             )
 
+    except WebSocketDisconnect:
+        logger.info(
+            f"WebSocket client disconnected explicitly for task_group_id: {task_group_id}. Listener will be cancelled in finally."
+        )
+        # The listener_task should be cancelled in the finally block.
+    except asyncio.CancelledError:
+        logger.info(
+            f"WebSocket endpoint task for task_group_id {task_group_id} was cancelled (e.g., server shutting down)."
+        )
+        # The listener_task should be cancelled in the finally block.
     except Exception as e:
         logger.error(
             f"Unhandled exception in websocket_task_group_endpoint for {task_group_id}: {e}",
             exc_info=True,
         )
-
         try:
-            await websocket.send_json(
-                {
-                    "event": "error",
-                    "task_group_id": task_group_id,
-                    "message": f"Internal server error: {str(e)}",
-                }
-            )
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json(
+                    {
+                        "event": "error",
+                        "task_group_id": task_group_id,
+                        "message": f"Internal server error: {str(e)}",
+                    }
+                )
         except Exception:
-            pass  # Ignore errors sending error message
+            pass  # Ignore errors sending error message during an existing error condition
 
     finally:
         logger.warning(
-            f"Executing finally block for task_group_id: {task_group_id}. Cleaning up connection."
+            f"Executing finally block for websocket_task_group_endpoint, task_group_id: {task_group_id}. Cleaning up connection."
         )
 
+        # 1. Cancel the listener task first. This signals intent to stop.
         if listener_task and not listener_task.done():
-            try:
-                listener_task.cancel()
-                try:
-                    await listener_task
-                except asyncio.CancelledError:
-                    logger.info(
-                        f"Redis listener task for {task_group_id} successfully cancelled."
-                    )
-                except Exception as e:
-                    logger.error(f"Error waiting for listener task cancellation: {e}")
-            except Exception as e:
-                logger.error(f"Error cancelling Redis listener task: {e}")
+            logger.info(
+                f"Cancelling listener_task for {task_group_id} in endpoint finally."
+            )
+            listener_task.cancel()
 
+        # 2. Close pubsub. This should help unblock get_message if it's waiting.
         if pubsub:
             try:
-                await pubsub.unsubscribe(channel_name)
+                logger.info(
+                    f"Attempting to unsubscribe and close pubsub for {task_group_id} in endpoint finally."
+                )
+                try:
+                    await pubsub.unsubscribe(channel_name)
+                except Exception as unsub_e:
+                    logger.warning(
+                        f"Error during pubsub unsubscribe for {task_group_id}: {unsub_e}",
+                        exc_info=True,
+                    )
+
                 await pubsub.close()
-                logger.info(f"Unsubscribed from Redis channel: {channel_name}")
+                logger.info(f"PubSub for {task_group_id} closed in endpoint finally.")
             except Exception as e:
-                logger.error(f"Error closing Redis PubSub: {e}")
+                logger.error(
+                    f"Error closing Redis PubSub for {task_group_id} in endpoint finally: {e}",
+                    exc_info=True,
+                )
 
-        await ws_manager.disconnect(websocket, task_group_id)
-        logger.info(f"WebSocket disconnected from manager for {task_group_id}")
-
-        # Ensure metadata cleanup if final message wasn't received
-        if ws_manager.get_task_group_metadata(task_group_id):
-            logger.warning(
-                f"WebSocket for {task_group_id} disconnected before cleanup triggered by final message. Cleaning up metadata now."
+        # 3. Await the listener task with a timeout.
+        if listener_task and not listener_task.done():
+            logger.info(
+                f"Awaiting listener_task completion for {task_group_id} with timeout in endpoint finally."
             )
-            ws_manager.cleanup_task_group_data(task_group_id)
+            try:
+                await asyncio.wait_for(listener_task, timeout=5.0)
+                logger.info(
+                    f"Listener task for {task_group_id} completed after cancellation/pubsub close."
+                )
+            except asyncio.CancelledError:
+                logger.info(
+                    f"Redis listener task for {task_group_id} was successfully cancelled (caught in endpoint finally)."
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Timeout waiting for listener task {task_group_id} to terminate in endpoint finally."
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error during await of listener_task for {task_group_id} in endpoint finally: {e}",
+                    exc_info=True,
+                )
+        elif listener_task and listener_task.done():
+            logger.info(
+                f"Listener task for {task_group_id} was already done when endpoint finally block ran."
+            )
+
+        # 4. Disconnect from ws_manager
+        await ws_manager.disconnect(websocket, task_group_id)
+        logger.info(
+            f"WebSocket (client: {websocket.client}) disconnected from ws_manager for {task_group_id} in endpoint finally."
+        )
+
+        # 5. Ensure metadata cleanup (idempotent)
+        # This is important if the 'overall_batch_completed' message wasn't processed by the listener
+        # or if the WebSocket disconnected prematurely.
+        ws_manager.cleanup_task_group_data(task_group_id)  # Already logs internally
+        logger.info(
+            f"Ensured cleanup of task group metadata for {task_group_id} in endpoint finally."
+        )

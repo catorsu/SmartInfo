@@ -8,18 +8,6 @@ automatically releasing clients, and ensures graceful shutdown of all managed
 client connections. This pooling mechanism is crucial for applications that
 make frequent calls to LLM services, as it reduces the overhead of establishing
 new connections for each request.
-
-@module_purpose: To provide an efficient and robust mechanism for managing
-                 and reusing `AsyncLLMClient` instances, thereby improving
-                 performance and resource utilization when interacting with
-                 LLM APIs in the SmartInfo backend.
-@primary_consumers: - `backend.core.workflow.news_fetch` (for processing news content)
-                    - Background tasks in `backend.background.tasks.news_tasks`
-                    - Potentially other services requiring high-throughput LLM access.
-@primary_dependencies: - `asyncio` (for asynchronous operations and queue management)
-                       - `backend.core.llm.client.AsyncLLMClient` (the client being pooled)
-@Key Components/Exports:
-  - LLMClientPool: The main class for managing the pool of LLM clients.
 """
 
 import asyncio
@@ -44,43 +32,6 @@ class LLMClientPool:
     async context manager (`.context()`) for safe acquisition and release of
     clients, and also direct `acquire()` and `release()` methods. The pool ensures
     that all managed clients are properly closed upon calling `close()`.
-
-    @class_responsibility: To create, manage, and provide access to a collection
-                           of `AsyncLLMClient` instances, optimizing LLM API call
-                           performance through connection reuse and controlled
-                           concurrency.
-    @typical_usage_pattern:
-        Instantiated once during application setup (e.g., in `main.py` lifespan).
-        Services or tasks then acquire clients from the pool using the `context()`
-        manager:
-        ```python
-        # Assuming llm_pool is an instance of LLMClientPool
-        async with llm_pool.context() as client:
-            response = await client.get_completion_content(...)
-        ```
-        Or, less commonly, using `acquire()` and `release()` manually:
-        ```python
-        client = await llm_pool.acquire()
-        try:
-            response = await client.get_completion_content(...)
-        finally:
-            await llm_pool.release(client)
-        ```
-    @attributes:
-        _pool_size (int): The maximum number of `AsyncLLMClient` instances in the pool.
-        _base_url (str): The base URL for the LLM API, passed to each client.
-        _api_key (str): The API key for the LLM service, passed to each client.
-        _model (Optional[str]): The default LLM model name, passed to each client.
-        _context (int): The context window size for the model, passed to each client.
-        _max_output_tokens (int): Max output tokens, passed to each client.
-        _max_input_tokens (int): Calculated max input tokens.
-        _timeout (int): Request timeout in seconds, passed to each client.
-        _max_retries_client (int): Max retries for client-side transient errors.
-        _clients (List[AsyncLLMClient]): Stores all created client instances.
-        _queue (Optional[asyncio.Queue[AsyncLLMClient]]): The queue holding available clients.
-        _init_lock (asyncio.Lock): Lock to ensure thread-safe initialization.
-        _initialized (bool): True if the pool has been successfully initialized.
-        _initializing (bool): True if the pool is currently in the process of initializing.
     """
 
     def __init__(

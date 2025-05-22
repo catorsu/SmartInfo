@@ -40,9 +40,6 @@ All public modules, functions, classes, and methods **MUST** have docstrings. No
     1.  Concise one-line summary ending with a period.
     2.  (Optional) A more detailed explanation of its functionality and purpose.
     3.  **Key Components/Exports:** List key classes or functions provided, with a brief description of their role. (e.g., for `utils/prompt.py`: "Provides standardized system prompt strings for LLM interactions.")
-    4.  **(Conceptual Tag) `@module_purpose:`** (Optional, within prose): Clearly state the primary goal (e.g., "Data access layer for User entities.").
-    5.  **(Conceptual Tag) `@primary_consumers:`** (Optional, within prose): Note typical modules that use this one (e.g., "Consumed by `AuthService` and API routers requiring user data.").
-    6.  **(Conceptual Tag) `@primary_dependencies:`** (Optional, within prose): Note critical modules this one relies on.
 *   **Example (`backend/core/security.py`):**
     ```python
     """
@@ -51,9 +48,6 @@ All public modules, functions, classes, and methods **MUST** have docstrings. No
     This module provides functions for password hashing and verification using bcrypt,
     and for creating and decoding JWT (JSON Web Tokens) for user authentication
     and session management.
-
-    @module_purpose: Centralized security operations related to passwords and JWTs.
-    @primary_consumers: `AuthService`, `api.dependencies.dependencies` (for token decoding).
     """
     ```
 
@@ -65,8 +59,6 @@ All public modules, functions, classes, and methods **MUST** have docstrings. No
     3.  **`Attributes:` Section (for public attributes):**
         *   `attribute_name (type): Description of the attribute. Include constraints
           (e.g., "immutable after initialization") or default values if applicable.`
-    4.  **(Conceptual Tag) `@class_responsibility:`** (Optional, within prose): Clearly state the main responsibility.
-    5.  **(Conceptual Tag) `@typical_usage_pattern:`** (Optional, within prose): How is this class typically instantiated and used? (e.g., "Instantiated by `LLMClientPool`; methods called by services needing LLM completions.").
     6.  Mention key collaborator classes/dependencies.
 *   **Example (`backend/core/llm/client.py` - `AsyncLLMClient`):**
     ```python
@@ -77,9 +69,6 @@ All public modules, functions, classes, and methods **MUST** have docstrings. No
         This client uses `openai.AsyncOpenAI` to send requests for completions
         and streaming content. It handles API authentication, request parameters,
         and leverages the underlying library's retry mechanisms for transient errors.
-
-        @class_responsibility: Provide a standardized asynchronous interface for making
-                                API calls to LLMs.
 
         Attributes:
             base_url (str): The base URL of the LLM API.
@@ -121,14 +110,6 @@ These are **critical** for AI understanding of how to use specific pieces of cod
         *   Include expected output structure for the given example inputs if feasible.
         *   Show how to handle common exceptions if relevant.
 
-*   **Optional but Recommended Sections for Enhanced AI Understanding:**
-    *   **`@preconditions:`** (Conceptual tag, within prose): What external state or conditions must be true before calling? (e.g., "Database connection must be initialized.", "User must be authenticated via `get_current_active_user`.").
-    *   **`@postconditions:`** (Conceptual tag, within prose): What state is guaranteed after successful execution? (e.g., "A `Chat` record with the specified title will exist for the user.").
-    *   **`@performance_notes:`** (Conceptual tag, within prose): Known performance characteristics or bottlenecks (e.g., "LLM calls can introduce significant latency.").
-    *   **`@security_notes:`** (Conceptual tag, within prose): Specific security considerations for this function (e.g., "Input `raw_html` is not sanitized here; caller must ensure safety if rendering.", "Handles user API keys; ensure `user_id` context is strictly enforced.").
-    *   **`@thread_safety:`** (Conceptual tag, within prose): Is the function/method thread-safe? (e.g., "Not thread-safe due to shared instance attribute `_counter`.").
-    *   **`@idempotency:`** (Conceptual tag, within prose): Is the operation idempotent? (e.g., "Yes", "No, creates duplicates if called multiple times with same args.").
-
 *   **Example (`backend/services/chat_service.py` - `create_chat`):**
     ```python
     async def create_chat(self, chat_data: ChatCreate, user_id: int) -> Chat:
@@ -157,10 +138,6 @@ These are **critical** for AI understanding of how to use specific pieces of cod
         Side Effects:
             - Inserts a new record into the `chats` table in the database.
             - Logs the creation event.
-
-        @preconditions: `user_id` must correspond to an existing, valid user.
-        @postconditions: A new chat session record linked to `user_id` will exist
-                         in the database.
         """
     ```
 
@@ -202,8 +179,6 @@ These are **critical** for AI understanding of how to use specific pieces of cod
     *   Performance optimizations that might look counter-intuitive.
     *   `# TODO(username or issue_tracker_link): Explanation of what needs to be done.`
     *   `# FIXME(username or issue_tracker_link): Explanation of the bug and potential fix.`
-    *   `# AI_ASSUMPTION: Comment if the code relies on an assumption not easily verifiable by static analysis (e.g., "Assumes input list is always sorted by caller").`
-    *   `# AI_WARNING: Highlight potential pitfalls for AI refactoring (e.g., "Modifying this loop order will break the stateful calculation").`
 
 ## 8. Maintenance
 

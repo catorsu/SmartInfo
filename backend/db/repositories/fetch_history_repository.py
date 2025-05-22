@@ -4,14 +4,6 @@ Fetch History Repository Module for SmartInfo.
 This module handles database operations for the `fetch_history` table,
 which tracks the number of news items saved per source per day for each user.
 It supports recording fetch completions and retrieving history records.
-
-@module_purpose: To maintain a log of news fetching activities, enabling features
-                 like daily fetch limits, activity tracking, and reporting.
-@primary_consumers: `background.tasks.news_tasks` (for recording completions),
-                    API endpoints related to user activity or fetch statistics.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.FetchHistory`,
-                       `db.schema_constants.NewsSource`, `asyncpg`.
 """
 
 import logging
@@ -32,13 +24,6 @@ class FetchHistoryRepository(BaseRepository):
     This class provides methods to record when news items are fetched and saved
     for a user from a specific source, and to retrieve this history. It uses
     UPSERT logic to handle daily records efficiently.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           tracking news fetching history.
-    @typical_usage_pattern: Instantiated and used by background tasks
-                            (`news_tasks`) to log fetch completions and by
-                            services or API endpoints that need to display
-                            fetch history to users.
     """
 
     async def record_completion(

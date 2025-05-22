@@ -6,20 +6,6 @@ repository classes in the SmartInfo application. It encapsulates common
 asynchronous database operations using `asyncpg`, such as executing queries,
 fetching single or multiple rows, and managing database connection contexts.
 Subclasses will inherit these helper methods to interact with specific tables.
-
-@module_purpose: To abstract common database interaction patterns, reduce
-                 boilerplate code in concrete repository implementations, and
-                 provide a consistent way to handle database connections and
-                 query execution.
-@primary_consumers: All concrete repository classes within the
-                    `backend.db.repositories` package inherit from
-                    `BaseRepository`.
-@primary_dependencies: `asyncpg` (for database operations),
-                       `backend.db.connection.get_db_connection_context` (for
-                       obtaining database connection contexts).
-
-Key Components/Exports:
-  - BaseRepository: The abstract base class for repositories.
 """
 
 import logging
@@ -45,14 +31,6 @@ class BaseRepository:
     This class is intended to be subclassed by specific entity repositories.
     It handles acquiring database connections via an async context manager and
     provides helper methods for executing various types of SQL queries.
-
-    @class_responsibility: To provide a foundational set of asynchronous methods
-                           for database interaction, simplifying the implementation
-                           of concrete repository classes.
-    @typical_usage_pattern: Inherited by classes like `UserRepository`,
-                            `NewsRepository`, etc. Its methods (`_execute`,
-                            `_fetchone`, etc.) are called by the subclasses to
-                            perform database operations.
 
     Attributes:
         _connection_override (Optional[AsyncpgConnection]): An optional,

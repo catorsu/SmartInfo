@@ -5,13 +5,6 @@ This module provides data access operations for news articles, interacting
 primarily with the 'news' table. It supports adding individual or batches of
 news items, retrieving news by various criteria (ID, filters, URLs), updating
 analysis content, and deleting news items for specific users.
-
-@module_purpose: To manage the persistence and retrieval of news articles
-                 collected and processed by users.
-@primary_consumers: `services.news_service.NewsService`, background tasks
-                    (`background.tasks.news_tasks`).
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.News`, `asyncpg`.
 """
 
 import logging
@@ -29,12 +22,6 @@ class NewsRepository(BaseRepository):
     """
     Repository for news table operations, handling CRUD and specific queries
     for news articles associated with users.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `news` table, managing news article data.
-    @typical_usage_pattern: Instantiated and used by `NewsService` and
-                            background news fetching tasks to store, retrieve,
-                            and manage news articles.
     """
 
     async def add(self, item: Dict[str, Any], user_id: int) -> Optional[int]:

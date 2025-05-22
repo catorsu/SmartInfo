@@ -1,193 +1,328 @@
 """
-Pydantic models for news related data (sources, categories, items, requests).
+Pydantic Schemas for News-Related Data.
+
+This module defines Pydantic models for representing news categories, news sources,
+individual news items, and various request/response structures related to news
+fetching and analysis within the SmartInfo application. These schemas are crucial
+for API request validation, response serialization, and internal data consistency.
+
+Key Schemas:
+  - NewsCategory, NewsCategoryCreate, NewsCategoryUpdate, NewsCategoryResponse: For news categories.
+  - NewsSource, NewsSourceCreate, NewsSourceUpdate, NewsSourceResponse: For news sources.
+  - NewsItem, NewsItemCreate, NewsItemUpdate, NewsResponse: For individual news articles.
+  - FetchSourceRequest, FetchSourceBatchRequest, FetchUrlRequest: For news fetching requests.
+  - TaskResponse: For asynchronous task initiation responses.
+  - AnalyzeRequest, AnalyzeContentRequest, AnalysisResult, UpdateAnalysisRequest: For content analysis.
+  - FetchHistoryItemResponse: For news fetching history.
 """
 
-from datetime import date, datetime  # Ensure datetime is imported for NewsResponse
+from datetime import date, datetime
 from pydantic import BaseModel, Field, AnyHttpUrl, ConfigDict, field_validator
-from typing import List, Optional, Dict, Any  # Ensure Any is imported for validator
+from typing import List, Optional, Dict, Any
 
 
 class NewsCategoryFields(BaseModel):
-    """Fields expected in news category create/update request payloads."""
+    """
+    Base fields for news category data, primarily the category name.
+    Shared by category creation, update, and full category models.
+    """
 
-    name: str = Field(..., max_length=100, description="Name of the news category")
+    name: str = Field(
+        ...,
+        max_length=100,
+        description="Name of the news category, e.g., 'Technology', 'Sports'. Must be unique per user.",
+        examples=["Technology", "Artificial Intelligence", "World News"],
+    )
 
 
 class NewsCategoryCreate(NewsCategoryFields):
-    """Schema for creating a new news category (request body)."""
+    """
+    Schema for creating a new news category. Used as a request body.
+    The `user_id` is typically derived from the authenticated user context.
+    """
 
-    pass  # Inherits name, does NOT include user_id
+    pass  # Inherits name. user_id is handled by the service.
 
 
 class NewsCategoryUpdate(NewsCategoryFields):
-    """Schema for updating a news category (request body)."""
+    """
+    Schema for updating an existing news category's name. Used as a request body.
+    """
 
-    pass  # Inherits name, does NOT include user_id
+    pass  # Inherits name. user_id and category_id are path/context parameters.
 
 
 class NewsCategory(NewsCategoryFields):
-    """Schema for representing a full news category object (response/database)."""
+    """
+    Schema representing a full news category object, typically for database
+    representation or internal use. Includes database ID and user ownership.
+    """
 
-    id: int = Field(..., description="Unique identifier for the news category")
+    id: int = Field(
+        ..., description="Unique identifier for the news category.", examples=[1, 25]
+    )
     user_id: int = Field(
-        ..., description="ID of the user who owns this category"
-    )  # Keep user_id here
+        ..., description="ID of the user who owns this category.", examples=[1, 10]
+    )
     source_count: Optional[int] = Field(
         None,
-        description="Number of news sources associated with this category (optional)",
+        description="Number of news sources associated with this category for the user. Typically populated on demand.",
+        examples=[0, 5, 12],
     )
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class NewsCategoryResponse(BaseModel):
-    """Schema for representing a news category in API responses (excludes user_id)."""
+    """
+    Schema for representing a news category in API responses.
+    Excludes `user_id` for security/privacy. Includes `source_count`.
+    """
 
-    id: int = Field(..., description="Unique identifier for the news category")
-    name: str = Field(..., max_length=100, description="Name of the news category")
+    id: int = Field(
+        ..., description="Unique identifier for the news category.", examples=[1]
+    )
+    name: str = Field(
+        ...,
+        max_length=100,
+        description="Name of the news category.",
+        examples=["Technology"],
+    )
     source_count: Optional[int] = Field(
         None,
-        description="Number of news sources associated with this category (optional)",
+        description="Number of news sources associated with this category for the user.",
+        examples=[5],
     )
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class NewsSourceFields(BaseModel):
-    """Fields expected in news source create/update request payloads."""
+    """
+    Base fields for news source data.
+    Shared by source creation, update, and full source models.
+    """
 
-    name: str = Field(..., max_length=100, description="Name of the news source")
+    name: str = Field(
+        ...,
+        max_length=100,
+        description="User-defined name for the news source, e.g., 'TechCrunch', 'BBC News'. Must be unique per user.",
+        examples=["TechCrunch", "The Guardian Tech"],
+    )
     url: AnyHttpUrl = Field(
-        ..., description="URL of the news source (e.g., homepage, RSS feed)"
+        ...,
+        description="URL of the news source, typically the homepage or an RSS feed URL. Must be unique per user.",
+        examples=[
+            "https://techcrunch.com",
+            "https://www.theguardian.com/technology/rss",
+        ],
     )
     category_id: int = Field(
-        ..., description="ID of the category this source belongs to"
+        ...,
+        description="ID of the news category this source belongs to. The category must exist and be owned by the user.",
+        examples=[1, 25],
     )
 
 
 class NewsSourceCreate(NewsSourceFields):
-    """Schema for creating a new news source (request body)."""
+    """
+    Schema for creating a new news source. Used as a request body.
+    The `user_id` is derived from the authenticated user context.
+    """
 
-    pass  # Inherits fields, does NOT include user_id
+    pass  # Inherits fields. user_id is handled by the service.
 
 
-class NewsSourceUpdate(NewsSourceFields):
-    """Schema for updating a news source (request body)."""
+class NewsSourceUpdate(
+    BaseModel
+):  # Changed from inheriting NewsSourceFields to allow all fields to be truly optional
+    """
+    Schema for updating an existing news source. Used as a request body.
+    All fields are optional, allowing partial updates.
+    """
 
-    # Inherits fields, makes them optional for updates
     name: Optional[str] = Field(
-        None, max_length=100, description="New name of the news source"
+        None,
+        max_length=100,
+        description="New name for the news source.",
+        examples=["TechCrunch (Updated)"],
     )
-    url: Optional[AnyHttpUrl] = Field(None, description="New URL of the news source")
+    url: Optional[AnyHttpUrl] = Field(
+        None,
+        description="New URL for the news source.",
+        examples=["https://techcrunch.com/new-feed"],
+    )
     category_id: Optional[int] = Field(
-        None, description="New category ID for the source"
+        None, description="New category ID for the source.", examples=[2]
     )
 
 
 class NewsSource(NewsSourceFields):
-    """Schema for representing a full news source object (response/database)."""
+    """
+    Schema representing a full news source object, typically for database
+    representation or internal use. Includes database ID, user ownership,
+    and denormalized category name.
+    """
 
-    id: int = Field(..., description="Unique identifier for the news source")
+    id: int = Field(
+        ..., description="Unique identifier for the news source.", examples=[101, 202]
+    )
     user_id: int = Field(
-        ..., description="ID of the user who owns this source"
-    )  # Keep user_id here
+        ..., description="ID of the user who owns this source.", examples=[1, 10]
+    )
     category_name: Optional[str] = Field(
         None,
-        description="Name of the category this source belongs to (for convenience)",
+        description="Name of the category this source belongs to (denormalized for convenience).",
+        examples=["Technology"],
     )
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class NewsSourceResponse(BaseModel):
-    """Schema for representing a news source in API responses (excludes user_id)."""
+    """
+    Schema for representing a news source in API responses.
+    Excludes `user_id`. Includes denormalized `category_name`.
+    """
 
-    id: int = Field(..., description="Unique identifier for the news source")
-    name: str = Field(..., max_length=100, description="Name of the news source")
+    id: int = Field(
+        ..., description="Unique identifier for the news source.", examples=[101]
+    )
+    name: str = Field(
+        ...,
+        max_length=100,
+        description="Name of the news source.",
+        examples=["TechCrunch"],
+    )
     url: AnyHttpUrl = Field(
-        ..., description="URL of the news source (e.g., homepage, RSS feed)"
+        ...,
+        description="URL of the news source.",
+        examples=["https://techcrunch.com"],
     )
     category_id: int = Field(
-        ..., description="ID of the category this source belongs to"
+        ..., description="ID of the category this source belongs to.", examples=[1]
     )
     category_name: Optional[str] = Field(
         None,
-        description="Name of the category this source belongs to (for convenience)",
+        description="Name of the category this source belongs to.",
+        examples=["Technology"],
     )
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class NewsItemFields(BaseModel):
-    """Fields expected in news item create/update request payloads."""
+    """
+    Base fields for news item data.
+    Shared by news item creation, update, and full item models.
+    """
 
-    title: str = Field(..., description="Title of the news item")
+    title: str = Field(
+        ...,
+        description="Title of the news item or article.",
+        examples=["New AI Model Achieves Breakthrough Performance"],
+    )
     url: Optional[AnyHttpUrl] = Field(
-        None, description="URL of the original news article"
+        None,
+        description="URL of the original news article. Should be unique per user if provided.",
+        examples=["https://example.com/news/ai-breakthrough"],
     )
     source_id: Optional[int] = Field(
-        None, description="ID of the source this news item came from"
+        None,
+        description="ID of the news source this item came from. Must exist and be owned by the user.",
+        examples=[101],
     )
     category_id: Optional[int] = Field(
-        None, description="ID of the category this news item belongs to"
+        None,
+        description="ID of the news category this item belongs to. Must exist and be owned by the user.",
+        examples=[1],
     )
-    summary: Optional[str] = Field(None, description="A brief summary of the news item")
+    summary: Optional[str] = Field(
+        None,
+        description="A brief summary of the news item, possibly LLM-generated.",
+        examples=[
+            "An AI model has surpassed human benchmarks in complex reasoning tasks..."
+        ],
+    )
     content: Optional[str] = Field(
-        None, description="Full content of the news item (potentially large)"
+        None,
+        description="Full content of the news item. This can be large and is often excluded from list views.",
     )
     analysis: Optional[str] = Field(
-        None, description="LLM-generated analysis or structured summary of the content"
+        None,
+        description="LLM-generated in-depth analysis or structured summary of the content.",
     )
     date: Optional[str] = Field(
         None,
-        description="Publication date of the news item (as a string, e.g., 'YYYY-MM-DD HH:MM:SS' or ISO format)",
+        description="Publication date of the news item (stored as text, e.g., 'YYYY-MM-DD' or ISO format).",
+        examples=["2023-10-26", "2023-10-26T10:00:00Z"],
     )
-    # Include source_name and category_name for easier handling in create/update
-    source_name: Optional[str] = Field(None, description="Name of the news source")
-    category_name: Optional[str] = Field(None, description="Name of the news category")
-    top_image: Optional[str] = Field(
-        None, description="URL of the top image for the news item"
+    source_name: Optional[str] = Field(
+        None,
+        description="Name of the news source (denormalized for convenience, especially if `source_id` is not set).",
+        examples=["Tech Journal"],
+    )
+    category_name: Optional[str] = Field(
+        None,
+        description="Name of the news category (denormalized for convenience, especially if `category_id` is not set).",
+        examples=["Artificial Intelligence"],
+    )
+    top_image: Optional[AnyHttpUrl] = Field(  # Changed to AnyHttpUrl for consistency
+        None,
+        description="URL of the top image associated with the news item.",
+        examples=["https://example.com/images/ai-breakthrough.jpg"],
     )
 
 
 class NewsItemCreate(NewsItemFields):
-    """Schema for creating a new news item (request body)."""
+    """
+    Schema for creating a new news item. Used as a request body.
+    `title` and `url` are mandatory for creation.
+    The `user_id` is derived from the authenticated user context.
+    """
 
-    # Override title and url to be required for creation
-    title: str = Field(..., description="Title of the news item")
-    url: AnyHttpUrl = Field(..., description="URL of the original news article")
-    # Does NOT include user_id
+    title: str = Field(
+        ..., description="Title of the news item."
+    )  # Already in NewsItemFields, but reinforcing mandatory nature
+    url: AnyHttpUrl = Field(
+        ..., description="URL of the original news article."
+    )  # Already in NewsItemFields, but reinforcing mandatory nature and type
+    # user_id is handled by the service.
 
 
 class NewsItemUpdate(NewsItemFields):
-    """Schema for updating an existing news item (request body)."""
+    """
+    Schema for updating an existing news item. Used as a request body.
+    All fields are optional, allowing partial updates.
+    """
 
-    # Inherits fields, makes them optional for updates
-    title: Optional[str] = Field(None, description="New title of the news item")
-    url: Optional[AnyHttpUrl] = Field(
-        None, description="New URL of the original news article"
-    )  # URL can be updated? Check backend logic. Assuming it can be for now.
-    source_id: Optional[int] = Field(
-        None, description="New source ID for the news item"
-    )
-    category_id: Optional[int] = Field(
-        None, description="New category ID for the news item"
-    )
-    summary: Optional[str] = Field(None, description="Updated summary")
-    content: Optional[str] = Field(None, description="Updated full content")
-    analysis: Optional[str] = Field(None, description="Updated analysis")
-    date: Optional[str] = Field(None, description="Updated publication date")
-    source_name: Optional[str] = Field(None, description="New name of the news source")
-    category_name: Optional[str] = Field(
-        None, description="New name of the news category"
-    )
-    # Does NOT include user_id
+    title: Optional[str] = Field(None, description="New title for the news item.")
+    # All other fields inherited from NewsItemFields are already Optional or made Optional here.
 
 
 class NewsItem(NewsItemFields):
-    """Schema for representing a full news item object (response/database)."""
+    """
+    Schema representing a full news item object, typically for database
+    representation or internal use. Includes database ID, user ownership,
+    and creation timestamp.
+    """
 
-    id: int = Field(..., description="Unique identifier for the news item")
+    id: int = Field(
+        ..., description="Unique identifier for the news item.", examples=[1001, 2050]
+    )
     user_id: int = Field(
-        ..., description="ID of the user who owns this news item"
-    )  # Keep user_id here
-    # source_name and category_name inherited from Fields for convenience
+        ..., description="ID of the user who owns this news item.", examples=[1, 10]
+    )
+    created_at: Optional[datetime] = Field(
+        None,
+        description="Timestamp (ISO 8601 format) when this news item record was created in the system.",
+        examples=["2023-10-26T10:05:00Z"],
+    )
+    task_group_id: Optional[str] = Field(
+        None,
+        description="ID of the Celery task group that fetched/processed this item (if applicable).",
+        examples=["abc-123-def-456"],
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -196,123 +331,191 @@ DEFAULT_NEWS_IMAGE_URL = "https://via.placeholder.com/350x200.png?text=SmartInfo
 
 
 class NewsResponse(BaseModel):
-    """Schema for representing a news item in API responses (excludes user_id and content)."""
+    """
+    Schema for representing a news item in API responses.
+    Excludes `user_id` and full `content` for brevity and security.
+    Includes a validated `top_image` URL.
+    """
 
-    id: int = Field(..., description="Unique identifier for the news item")
-    title: str = Field(..., description="Title of the news item")
+    id: int = Field(
+        ..., description="Unique identifier for the news item.", examples=[1001]
+    )
+    title: str = Field(
+        ...,
+        description="Title of the news item.",
+        examples=["AI Model Surpasses Human Benchmarks"],
+    )
     url: Optional[AnyHttpUrl] = Field(
-        None, description="URL of the original news article"
+        None,
+        description="URL of the original news article.",
+        examples=["https://example.com/news/ai-benchmark"],
     )
     source_id: Optional[int] = Field(
-        None, description="ID of the source this news item came from"
+        None, description="ID of the news source.", examples=[101]
     )
     category_id: Optional[int] = Field(
-        None, description="ID of the category this news item belongs to"
+        None, description="ID of the news category.", examples=[1]
     )
-    summary: Optional[str] = Field(None, description="A brief summary of the news item")
+    summary: Optional[str] = Field(
+        None,
+        description="A brief summary of the news item.",
+        examples=["A new AI model has shown superior performance..."],
+    )
     analysis: Optional[str] = Field(
-        None, description="LLM-generated analysis or structured summary of the content"
+        None, description="LLM-generated analysis of the content."
     )
     date: Optional[str] = Field(
         None,
-        description="Publication date of the news item (as a string, e.g., 'YYYY-MM-DD HH:MM:SS' or ISO format)",
+        description="Publication date (e.g., 'YYYY-MM-DD' or ISO format).",
+        examples=["2023-10-26"],
     )
-    source_name: Optional[str] = Field(None, description="Name of the news source")
-    category_name: Optional[str] = Field(None, description="Name of the news category")
+    source_name: Optional[str] = Field(
+        None, description="Name of the news source.", examples=["AI Insights Weekly"]
+    )
+    category_name: Optional[str] = Field(
+        None, description="Name of the news category.", examples=["AI Research"]
+    )
     created_at: Optional[datetime] = Field(
-        None, description="Timestamp when the news item was created"
-    )  # New field
+        None,
+        description="Timestamp (ISO 8601) when the item was saved in SmartInfo.",
+        examples=["2023-10-26T10:05:00Z"],
+    )
     top_image: AnyHttpUrl = Field(
-        description="URL of the top image for the news item"
-    )  # Type as AnyHttpUrl, default provided by validator
+        ...,  # Made non-optional due to validator providing default
+        description="URL of the top image for the news item. Defaults to a placeholder if not available or invalid.",
+        examples=["https://example.com/images/news-image.jpg"],
+    )
 
     @field_validator("top_image", mode="before")
     @classmethod
     def validate_top_image_url(cls, v: Any) -> str:
         """
-        Validates the top_image field. If it's not a valid-looking HTTP/S URL string,
-        it defaults to DEFAULT_NEWS_IMAGE_URL.
+        Validates the top_image field. If it's None, an empty string, or not a
+        valid-looking HTTP/S URL string, it defaults to DEFAULT_NEWS_IMAGE_URL.
         The returned string will then be parsed by Pydantic into AnyHttpUrl.
         """
         if isinstance(v, str) and v.strip():
-            # Basic check if it looks like an HTTP/HTTPS URL
             if v.startswith("http://") or v.startswith("https://"):
                 return v
-        # If v is None, not a string, an empty string, or doesn't start with http/https
         return DEFAULT_NEWS_IMAGE_URL
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class FetchSourceRequest(BaseModel):
-    """Schema for requesting fetching from a specific source."""
+    """Schema for requesting news fetching from a specific source ID."""
 
-    source_id: int = Field(..., description="ID of the news source to fetch")
+    source_id: int = Field(
+        ...,
+        description="ID of the news source to fetch news from.",
+        examples=[101],
+    )
 
 
 class FetchSourceBatchRequest(BaseModel):
-    """Schema for requesting batch fetching from multiple sources."""
+    """Schema for requesting batch fetching of news from multiple source IDs."""
 
-    source_ids: List[int] = Field(..., description="List of news source IDs to fetch")
+    source_ids: List[int] = Field(
+        ...,
+        description="List of news source IDs to fetch news from.",
+        examples=[[101, 102, 103]],
+    )
 
 
 class FetchUrlRequest(BaseModel):
     """Schema for requesting crawling and processing of a single URL."""
 
-    url: AnyHttpUrl = Field(..., description="URL to crawl and process")
+    url: AnyHttpUrl = Field(
+        ...,
+        description="The URL to crawl and process for news content.",
+        examples=["https://example.com/specific-article-to-fetch"],
+    )
 
 
 class TaskResponse(BaseModel):
-    """Schema for responses to task initiation requests."""
+    """Schema for responses to asynchronous task initiation requests."""
 
-    task_group_id: str = Field(..., description="Unique identifier for the task group")
-    message: str = Field(..., description="Informational message about the task")
+    task_group_id: str = Field(
+        ...,
+        description="Unique identifier for the initiated task group. Used for progress tracking.",
+        examples=["a1b2c3d4-e5f6-7890-1234-567890abcdef"],
+    )
+    message: str = Field(
+        ...,
+        description="Informational message about the task initiation status.",
+        examples=["Batch fetch group scheduled for 5 sources."],
+    )
 
 
 class AnalyzeRequest(BaseModel):
-    """Schema for requesting analysis of news items."""
+    """Schema for requesting LLM analysis of one or more news items."""
 
     news_ids: Optional[List[int]] = Field(
         None,
-        description="List of news item IDs to analyze. If empty or None, analyze all unanalyzed.",
+        description="List of news item IDs to analyze. If empty or None, the backend might analyze all unanalyzed items for the user.",
+        examples=[[1001, 1002]],
     )
     force: bool = Field(
-        False, description="If True, force re-analysis even if analysis already exists."
+        False,
+        description="If True, force re-analysis even if an analysis already exists for the news item(s).",
+        examples=[True, False],
     )
 
 
 class AnalyzeContentRequest(BaseModel):
-    """Schema for requesting analysis of arbitrary content."""
+    """Schema for requesting LLM analysis of arbitrary text content."""
 
-    content: str = Field(..., description="The content to be analyzed")
+    content: str = Field(..., description="The text content to be analyzed by the LLM.")
     instructions: str = Field(
         ...,
-        description="Specific instructions for the LLM on how to perform the analysis",
+        description="Specific instructions or system prompt for the LLM on how to perform the analysis.",
+        examples=[
+            "Summarize this text in three bullet points.",
+            "Identify the key arguments in this article.",
+        ],
     )
 
 
 class AnalysisResult(BaseModel):
-    """Schema for the result of content analysis."""
+    """Schema for the result of an LLM content analysis."""
 
     analysis: str = Field(
         ...,
-        description="The analysis result (can be Markdown, plain text, or other format as requested)",
+        description="The analysis result generated by the LLM (can be Markdown, plain text, or other format as per instructions).",
     )
 
 
 class UpdateAnalysisRequest(BaseModel):
-    """Schema for updating the analysis field of a news item."""
+    """Schema for manually updating the analysis field of a news item."""
 
     analysis: str = Field(
-        ..., description="The new analysis text to store for the news item"
+        ...,
+        description="The new analysis text to store for the news item.",
+        examples=["This article discusses the impact of AI on employment..."],
     )
 
 
 class FetchHistoryItemResponse(BaseModel):
-    source_id: int
-    source_name: str
-    record_date: date
-    items_saved_today: int
-    last_updated_at: Optional[datetime] = None
+    """Schema for representing a fetch history item in API responses."""
+
+    source_id: int = Field(..., description="ID of the news source.", examples=[101])
+    source_name: str = Field(
+        ..., description="Name of the news source.", examples=["Tech News Daily"]
+    )
+    record_date: date = Field(
+        ...,
+        description="The date (YYYY-MM-DD) for which items were saved.",
+        examples=["2023-10-26"],
+    )
+    items_saved_today: int = Field(
+        ...,
+        description="Number of items saved from this source for the user on this day.",
+        examples=[5, 0, 12],
+    )
+    last_updated_at: Optional[datetime] = Field(
+        None,
+        description="Timestamp (ISO 8601) when this history record was last updated.",
+        examples=["2023-10-26T14:30:00Z"],
+    )
 
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)

@@ -1,7 +1,13 @@
-"""
-Celery Application Configuration
-Configures Celery to use Redis as both message broker and result backend.
-Used for background task processing of news fetching and analysis.
+"""Configures and initializes the Celery application for SmartInfo.
+
+This module sets up Celery with Redis as the message broker and result backend.
+It defines the core Celery application instance used for managing and executing
+asynchronous background tasks, such as news fetching and content analysis.
+The configuration includes task serialization, timezone settings, and worker
+behavior.
+
+Key Components/Exports:
+    celery_app (Celery): The configured Celery application instance.
 """
 
 import os
@@ -18,10 +24,15 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+logging.getLogger("jieba").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
+# URL for the Celery message broker (Redis).
+# Reads from the REDIS_URL environment variable.
 BROKER_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+# URL for the Celery result backend (Redis).
+# Reads from the REDIS_BACKEND_URL environment variable.
 BACKEND_URL = os.getenv("REDIS_BACKEND_URL", "redis://127.0.0.1:6379/1")
 
 

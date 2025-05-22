@@ -3,13 +3,6 @@ News Category Repository Module for SmartInfo.
 
 This module handles database operations for news categories, allowing users
 to organize their news sources. It interacts with the `news_category` table.
-
-@module_purpose: To provide a persistent storage interface for user-defined
-                 news categories.
-@primary_consumers: `services.news_service.NewsService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.NewsCategory`,
-                       `db.schema_constants.NewsSource` (for counts), `asyncpg`.
 """
 
 import logging
@@ -29,11 +22,6 @@ class NewsCategoryRepository(BaseRepository):
     Provides methods for adding, retrieving, updating, and deleting news
     categories for users. It also includes a method to get categories along
     with a count of associated news sources.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `news_category` table.
-    @typical_usage_pattern: Instantiated and used by `NewsService` to manage
-                            news categories based on user actions.
     """
 
     async def add(self, name: str, user_id: int) -> Optional[int]:

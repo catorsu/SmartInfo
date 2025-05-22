@@ -4,12 +4,6 @@ Chat Repository Module for SmartInfo.
 This module handles all database operations related to chat sessions, including
 creating, retrieving, updating, and deleting chat records. It interacts
 primarily with the 'chats' table.
-
-@module_purpose: To provide a persistent storage interface for chat sessions,
-                 allowing users to have multiple distinct conversations.
-@primary_consumers: `services.chat_service.ChatService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `db.schema_constants.Chats`, `asyncpg`.
 """
 
 import logging
@@ -30,11 +24,6 @@ class ChatRepository(BaseRepository):
     Provides methods for adding, updating, deleting, and retrieving chat
     sessions, ensuring that operations are performed in the context of a
     specific user.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `chats` table, managing chat session data.
-    @typical_usage_pattern: Instantiated and used by `ChatService` to manage
-                            chat sessions based on user actions.
     """
 
     async def add(self, title: str, user_id: int) -> Optional[int]:

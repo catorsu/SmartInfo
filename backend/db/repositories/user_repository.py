@@ -4,13 +4,6 @@ User Repository Module for SmartInfo.
 This module handles database operations related to user accounts, such as
 creating new users and retrieving user information for authentication and
 profile management. It interacts with the 'users' table.
-
-@module_purpose: To provide a persistent storage interface for user account data,
-                 including credentials and basic profile information.
-@primary_consumers: `services.auth_service.AuthService`.
-@primary_dependencies: `db.repositories.base_repository.BaseRepository`,
-                       `models.schemas.user.UserInDB` (Pydantic model),
-                       `db.schema_constants.Users`, `asyncpg`.
 """
 
 from typing import Optional, Any, Tuple
@@ -30,11 +23,6 @@ class UserRepository(BaseRepository):
 
     Provides methods to add new users and retrieve user details by username or ID.
     This class is crucial for user registration and authentication processes.
-
-    @class_responsibility: To encapsulate all database interactions related to
-                           the `users` table, managing user account data.
-    @typical_usage_pattern: Instantiated and used by `AuthService` to handle
-                            user creation, authentication, and profile updates.
     """
 
     async def add_user(self, username: str, hashed_password: str) -> Optional[UserInDB]:
