@@ -1,22 +1,35 @@
-/* frontend/src/styles/LoginPage.module.css */
+/*
+ * @file LoginPage.module.css
+ * @description Styles specific to the Login and Registration pages.
+ * Defines the layout for the page container and the central card form.
+ * Uses CSS Modules.
+ */
+
+/* --- Main Page Container for Login/Register --- */
 .loginContainer {
     display: flex;
     justify-content: center;
+    /* Horizontally center content. */
     align-items: center;
+    /* Vertically center content. */
     min-height: 100vh;
+    /* Ensure container takes at least full viewport height. */
     background-color: var(--secondary-bg) !important;
-    /* Light grey page background */
+    /* Light grey page background from global vars. */
 }
 
+/* --- Login/Register Card Styling --- */
 .loginCard {
     width: 400px;
-    /* Adjust width as needed */
+    /* Fixed width for the card, adjust as needed. */
     padding: 20px;
+    /* Internal padding for the card content. */
     background-color: var(--primary-bg) !important;
-    /* White card */
+    /* White card background from global vars. */
     border: 1px solid var(--border-color) !important;
+    /* Border for the card. */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    /* Softer shadow */
+    /* Softer shadow for a subtle lift. */
 }
 
-/* Add any other specific styles if needed */
+/* Add any other specific styles for login/register elements if needed below. */

@@ -22,7 +22,7 @@ import redis as sync_redis  # For synchronous operations like in chord callback
 
 from celery import shared_task, Task
 
-from core.llm.client import AsyncLLMClient  # Changed from LLMClientPool
+from core.llm.client import AsyncLLMClient
 from db.repositories import (
     NewsRepository,
     NewsSourceRepository,
@@ -33,8 +33,6 @@ from models import ApiKey  # Pydantic model for API Key data
 
 from core.workflow.news_fetch import fetch_news  # Core news fetching logic
 from db.connection import init_db_connection, DatabaseConnectionManager
-
-# from core.ws_manager import ws_manager # WebSocket manager, if direct updates were needed
 
 from .step_codes import (
     PREPARING,
@@ -99,7 +97,7 @@ async def _run_batch_processing(
     """
     pid = os.getpid()
     db_manager: Optional[DatabaseConnectionManager] = None
-    llm_client: Optional[AsyncLLMClient] = None  # Changed from llm_pool
+    llm_client: Optional[AsyncLLMClient] = None
     news_repo: Optional[NewsRepository] = None
     source_repo: Optional[NewsSourceRepository] = None
     api_key_repo: Optional[ApiKeyRepository] = None
@@ -249,9 +247,7 @@ async def _run_batch_processing(
                 "message": "No valid sources to process in this batch.",
             }
 
-        llm_client = await _get_user_llm_client(
-            user_id, api_key_repo
-        )  # Changed from _get_user_llm_pool
+        llm_client = await _get_user_llm_client(user_id, api_key_repo)
         if llm_client is None:
             err_msg = (
                 f"No valid LLM API key found for user {user_id}. Cannot process batch."
@@ -283,7 +279,7 @@ async def _run_batch_processing(
                 semaphore=semaphore,
                 task=task,
                 source_details=source_data,
-                llm_client=llm_client,  # Changed from llm_pool
+                llm_client=llm_client,
                 news_repo=news_repo,
                 fetch_history_repo=fetch_history_repo,
                 user_id=user_id,
@@ -391,14 +387,12 @@ async def _run_batch_processing(
             except Exception as redis_err:
                 logger.error(f"Error closing Redis client: {redis_err}", exc_info=True)
 
-        if llm_client:  # Changed from llm_pool
+        if llm_client:
             try:
-                await llm_client.close()  # Changed from llm_pool.close()
+                await llm_client.close()
                 logger.info(f"[PID:{pid}] Task {task.request.id}: LLM client closed.")
             except Exception as close_err:
-                logger.error(
-                    f"Error closing LLM client: {close_err}", exc_info=True
-                )  # Changed log message
+                logger.error(f"Error closing LLM client: {close_err}", exc_info=True)
 
         if db_manager:
             try:
@@ -416,7 +410,7 @@ async def _process_single_source_concurrently(
     semaphore: asyncio.Semaphore,
     task: Task,
     source_details: Dict[str, Any],
-    llm_client: AsyncLLMClient,  # Changed from llm_pool
+    llm_client: AsyncLLMClient,
     news_repo: NewsRepository,
     fetch_history_repo: FetchHistoryRepository,
     user_id: int,
@@ -591,9 +585,9 @@ async def _process_single_source_concurrently(
             )
 
 
-async def _get_user_llm_client(  # Renamed from _get_user_llm_pool
+async def _get_user_llm_client(
     user_id: int, api_key_repo: ApiKeyRepository
-) -> Optional[AsyncLLMClient]:  # Return type changed
+) -> Optional[AsyncLLMClient]:
     """Fetches the user's API key configuration and initializes an AsyncLLMClient.
 
     Retrieves API key details for the given user from the database.
@@ -632,8 +626,8 @@ async def _get_user_llm_client(  # Renamed from _get_user_llm_pool
                 model=api_key.model,
                 context=api_key.context,
                 max_output_tokens=api_key.max_output_tokens,
-                timeout=600,  # Consistent with previous LLMClientPool default for internal AsyncLLMClients
-                max_retries=3,  # Consistent with previous LLMClientPool default for internal AsyncLLMClients
+                timeout=600,
+                max_retries=3,
             )
         except Exception as e:
             logger.error(

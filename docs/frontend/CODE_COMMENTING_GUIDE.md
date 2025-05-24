@@ -2,7 +2,7 @@
 
 ## 1. Introduction
 
-This guide provides the official standards and best practices for writing code comments and documentation within the SmartInfo frontend codebase (TypeScript, TSX, CSS). The primary objective is to enable AI assistants to accurately understand, utilize, and contribute to frontend modules and components. These standards also ensure clarity and maintainability for human developers.
+This guide provides the official standards and best practices for writing code comments and documentation within the SmartInfo frontend codebase (TypeScript, TSX, CSS). The primary objective is to enable all contributors to accurately understand, utilize, and contribute to frontend modules and components. These standards also ensure clarity and maintainability for human developers.
 
 Adherence to this guide is expected for all new and modified frontend code.
 
@@ -32,7 +32,7 @@ JSDoc is the standard for documenting TypeScript and TSX code. Use `/** ... */` 
     *   `@file FileName.tsx` (or `.ts`)
     *   `@description One-line summary of the file's purpose.`
     *   (Optional) More detailed explanation of its role (e.g., "Entry point for the chat page," "Contains utility functions for API error handling.").
-    *   **(Conceptual Tag) `@file_purpose:`** (Optional, within prose): Clearly state the primary goal (e.g., "Defines the main application layout for authenticated users.").
+    *   `@file_purpose:` (Optional, within prose): Clearly state the primary goal (e.g., "Defines the main application layout for authenticated users.").
     *   If it's a module exporting multiple items, briefly list key exports.
 *   **Example (`frontend/src/services/api.ts`):**
     ```typescript
@@ -205,7 +205,7 @@ JSDoc is the standard for documenting TypeScript and TSX code. Use `/** ... */` 
 *   **Example (within a React component):**
     ```tsx
     useEffect(() => {
-      // AI_ASSUMPTION: Assumes `chatId` from router query is stable and
+      // Assumes `chatId` from router query is stable and
       // a valid number string once router.isReady is true.
       if (router.isReady && id) {
         const chatIdNum = parseInt(id as string);
@@ -218,6 +218,4 @@ JSDoc is the standard for documenting TypeScript and TSX code. Use `/** ... */` 
 
 *   **Comments as Code:** Treat comments and docstrings as integral parts of the frontend codebase.
 *   **Review Process:** Code reviews **MUST** include a review of associated comments and JSDoc for clarity, accuracy, and completeness according to this guide.
-*   **Updates:** When component props, state logic, function signatures, or UI behavior changes, the corresponding comments and docstrings **MUST** be updated in the same commit/PR.
-
-By adhering to this Frontend Code Commenting Guide, we will build a SmartInfo frontend that is understandable, maintainable, and well-suited for efficient collaboration with AI development assistants.
+*   **Code Changes and Documentation Synchronization:** Whenever code logic is changed, refactored, or modified, all corresponding JSDoc comments and docstrings **MUST** be updated within the same commit/PR to accurately reflect the new state and behavior. These updated comments and docstrings must strictly adhere to all guidelines within this document. Avoid introducing inline comments that are redundant (e.g., restating type information already clear from TypeScript types, or explaining obvious code mechanics) or do not add explanatory value as defined herein. The primary focus is on maintaining purposeful and accurate documentation for the current state of the codebase.

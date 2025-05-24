@@ -1,3 +1,12 @@
+/**
+ * @file SettingsContent.tsx
+ * @description Provides the main user interface for managing various application
+ * settings. This includes general application preferences, API key configuration,
+ * news source and category management, and user account settings.
+ *
+ * @file_purpose To centralize all settings-related UI and logic into a single,
+ *               tabbed component for ease of use and maintenance.
+ */
 import React, { useState, useEffect } from 'react';
 import { Row, Col } from 'antd';
 import {
@@ -46,40 +55,71 @@ const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
+/**
+ * @interface ApiKeyFormValues
+ * @description Defines the structure for the form values when creating or editing an API key.
+ */
 interface ApiKeyFormValues {
-  model: string;
-  base_url: string;
-  api_key: string;
-  context: number;
-  max_output_tokens: number;
-  description?: string;
+  model: string;              // The model name associated with the API key (e.g., "deepseek-chat").
+  base_url: string;           // The base URL for the API service.
+  api_key: string;            // The actual API key string.
+  context: number;            // The context length supported by the model.
+  max_output_tokens: number;  // The maximum number of output tokens the model can generate.
+  description?: string;       // [description] Optional: A user-defined description for the API key.
 }
 
+/**
+ * @component SettingsContent
+ * @description A comprehensive component that renders a tabbed interface for managing
+ * various application and user settings. It handles:
+ * - General application settings.
+ * - API Key management (CRUD operations, testing).
+ * - News Source and Category management (CRUD operations).
+ * - User Account settings (changing username, password, logout).
+ * It interacts with respective services to fetch and update data.
+ *
+ * @returns {JSX.Element} The rendered settings management UI.
+ *
+ * @example
+ * // Typically used within a Modal in a layout component like MainLayout.tsx
+ * // <Modal title="Settings" open={isSettingsModalVisible} onCancel={handleClose}>
+ * //   <SettingsContent />
+ * // </Modal>
+ */
 const SettingsContent: React.FC = () => {
   const { user, logout, loading: authLoading, updateUserProfile } = useAuth();
+  // State for various settings sections
   const [settings, setSettings] = useState<Record<string, any>>({});
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [categories, setCategories] = useState<NewsCategory[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [settingsLoading, setSettingsLoading] = useState(true);
-  const [apiKeysLoading, setApiKeysLoading] = useState(true);
+
+  // Loading and error states
+  const [loading, setLoading] = useState(false); // General loading for initial data fetch
+  const [savingSettings, setSavingSettings] = useState(false); // For general settings save
+  const [settingsLoading, setSettingsLoading] = useState(true); // For general settings tab
+  const [apiKeysLoading, setApiKeysLoading] = useState(true); // For API keys tab
   const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null);
 
+  // API Key Modal state
   const [isApiKeyModalVisible, setIsApiKeyModalVisible] = useState(false);
   const [apiKeyForm] = Form.useForm<ApiKeyFormValues>();
   const [editingApiKeyId, setEditingApiKeyId] = useState<number | null>(null);
-  const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null);
+  const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null); // Stores the API key being edited
 
+  // News Source Modal state
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
   const [sourceForm] = Form.useForm<{ name: string; url: string; category_id: number }>();
   const [editingSourceId, setEditingSourceId] = useState<number | null>(null);
+
+  // News Category Modal state
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [isAddCategoryModalVisible, setIsAddCategoryModalVisible] = useState(false);
 
+  // General settings form
   const [settingsForm] = Form.useForm();
 
+  // Account settings modals state
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
   const [passwordForm] = Form.useForm();
@@ -92,6 +132,7 @@ const SettingsContent: React.FC = () => {
     loadAllData();
   }, []);
 
+  // Fetches all necessary data for the settings page.
   const loadAllData = async () => {
     try {
       setLoading(true);
@@ -111,12 +152,13 @@ const SettingsContent: React.FC = () => {
     }
   };
 
+  // Fetches general application settings.
   const loadSettings = async () => {
     try {
       setSettingsLoading(true);
       const settingsData = await settingsService.getSettings();
       setSettings(settingsData);
-      settingsForm.setFieldsValue(settingsData);
+      settingsForm.setFieldsValue(settingsData); // Populate form with fetched settings
     } catch (err: any) {
       const errorDetails = extractErrorMessage(err);
       setError(errorDetails);
@@ -125,12 +167,14 @@ const SettingsContent: React.FC = () => {
     }
   };
 
+  // Fetches API keys.
   const loadApiKeys = async () => {
     try {
       setApiKeysLoading(true);
       const apiKeysData = await settingsService.getApiKeys();
       setApiKeys(apiKeysData);
-    } catch (err: any) {
+    } catch (err: any)
+      {
       const errorDetails = extractErrorMessage(err);
       setError(errorDetails);
     } finally {
@@ -138,23 +182,28 @@ const SettingsContent: React.FC = () => {
     }
   };
 
+  // Fetches news categories.
   const loadCategories = async () => {
     try {
       const categoriesData = await newsService.getCategories();
       setCategories(categoriesData);
     } catch (err: any) {
+      // Error is logged, but not set to global error state to allow other sections to load
       console.error('Failed to load categories:', err);
     }
   };
 
+  // Fetches news sources.
   const loadSources = async () => {
     try {
       const sourcesData = await newsService.getSources();
       setSources(sourcesData);
     } catch (err: any) {
+      // Error is logged, but not set to global error state
       console.error('Failed to load sources:', err);
     }
   };
+  // Handles changes to individual general settings (currently not directly used by UI, form handles it).
   const handleSettingChange = (key: string, value: any) => {
     setSettings(prev => ({
       ...prev,
@@ -162,11 +211,12 @@ const SettingsContent: React.FC = () => {
     }));
   };
 
+  // Saves general application settings.
   const saveSettings = async (values: Record<string, any>) => {
     try {
       setSavingSettings(true);
       const result = await settingsService.updateSettings(values);
-      setSettings(result.settings);
+      setSettings(result.settings); // Assuming backend returns updated settings object
       message.success('Settings saved successfully');
     } catch (error) {
       handleApiError(error, 'Failed to save settings');
@@ -175,9 +225,10 @@ const SettingsContent: React.FC = () => {
     }
   };
 
+  // Resets general application settings to their default values.
   const resetSettings = async () => {
     try {
-      setLoading(true);
+      setLoading(true); // Use general loading for this action
       const result = await settingsService.resetSettings();
       setSettings(result.settings);
       settingsForm.setFieldsValue(result.settings);
@@ -188,19 +239,21 @@ const SettingsContent: React.FC = () => {
       setLoading(false);
     }
   };
+  // Shows the modal for adding a new API key.
   const showAddApiKeyModal = () => {
     apiKeyForm.resetFields();
-    setEditingApiKey(null);
+    setEditingApiKey(null); // Ensure not in edit mode
     setEditingApiKeyId(null);
     setIsApiKeyModalVisible(true);
   };
 
+  // Shows the modal for editing an existing API key, pre-filling the form.
   const showEditApiKeyModal = (record: ApiKey) => {
-    setEditingApiKey(record);
+    setEditingApiKey(record); // Store the key being edited
     setEditingApiKeyId(record.id);
-    settingsService.getApiKey(record.id)
+    settingsService.getApiKey(record.id) // Fetch full details in case table has partial data
       .then(apiKeyData => {
-        if (apiKeyData === null) {
+        if (apiKeyData === null) { // Should not happen if record exists, but good check
           message.error('API key not found or has been deleted');
           setIsApiKeyModalVisible(false);
           setEditingApiKey(null);
@@ -210,14 +263,14 @@ const SettingsContent: React.FC = () => {
         apiKeyForm.setFieldsValue({
           model: apiKeyData.model,
           base_url: apiKeyData.base_url,
-          api_key: apiKeyData.api_key,
+          api_key: apiKeyData.api_key, // This will be the actual key
           context: apiKeyData.context,
           max_output_tokens: apiKeyData.max_output_tokens,
           description: apiKeyData.description
         });
         setIsApiKeyModalVisible(true);
       })
-      .catch(error => { // This catch will now only handle non-404 errors
+      .catch(error => {
         handleApiError(error, 'Failed to load API key details');
         setIsApiKeyModalVisible(false);
         setEditingApiKey(null);
@@ -225,12 +278,13 @@ const SettingsContent: React.FC = () => {
       });
   };
 
+  // Handles saving (create or update) of an API key.
   const handleApiKeySave = async () => {
     try {
       const values = await apiKeyForm.validateFields();
 
-      if (editingApiKey) {
-        await settingsService.updateApiKey(editingApiKeyId!, values);
+      if (editingApiKeyId && editingApiKey) { // Check editingApiKeyId for clarity
+        await settingsService.updateApiKey(editingApiKeyId, values);
         message.success('API key updated successfully');
       } else {
         await settingsService.createApiKey(values);
@@ -238,27 +292,29 @@ const SettingsContent: React.FC = () => {
       }
 
       setIsApiKeyModalVisible(false);
-      loadApiKeys();
+      loadApiKeys(); // Refresh the list
     } catch (error) {
       handleApiError(error, 'Failed to save API key');
     }
   };
 
+  // Handles deletion of an API key.
   const handleDeleteApiKey = async (apiKeyId: number) => {
     try {
       await settingsService.deleteApiKey(apiKeyId);
       message.success('API key deleted successfully');
-      loadApiKeys();
+      loadApiKeys(); // Refresh the list
     } catch (error) {
       handleApiError(error, 'Failed to delete API key');
     }
   };
+  // Tests the connection for a given API key.
   const handleTestApiKey = async (apiKeyId: number) => {
-    const testMessage = message.loading('Testing API key connection...', 0);
+    const testMessage = message.loading('Testing API key connection...', 0); // Indefinite loading message
 
     try {
       const result = await settingsService.testApiKey(apiKeyId);
-      testMessage();
+      testMessage(); // Close loading message
 
       if (result.status === 'success') {
         message.success('Connection test successful!');
@@ -266,16 +322,18 @@ const SettingsContent: React.FC = () => {
         message.error(`Test failed: ${result.message}`);
       }
     } catch (error) {
-      testMessage();
+      testMessage(); // Close loading message on error
       handleApiError(error, 'Failed to test API key');
     }
   };
+  // Shows the modal for adding a new news source.
   const showAddSourceModal = () => {
     sourceForm.resetFields();
-    setEditingSourceId(null);
+    setEditingSourceId(null); // Ensure not in edit mode
     setIsSourceModalVisible(true);
   };
 
+  // Shows the modal for editing an existing news source, pre-filling the form.
   const showEditSourceModal = (record: NewsSource) => {
     sourceForm.setFieldsValue({
       name: record.name,
@@ -286,6 +344,7 @@ const SettingsContent: React.FC = () => {
     setIsSourceModalVisible(true);
   };
 
+  // Handles saving (create or update) of a news source.
   const handleSourceSave = async () => {
     try {
       const values = await sourceForm.validateFields();
@@ -299,28 +358,32 @@ const SettingsContent: React.FC = () => {
       }
 
       setIsSourceModalVisible(false);
-      loadSources();
+      loadSources(); // Refresh the list
     } catch (error) {
+      // Using console.error for detailed logging, message.error for user feedback
       console.error('Failed to save source:', error);
-      message.error('Failed to save source');
+      message.error('Failed to save source. Check console for details.');
     }
   };
 
+  // Handles deletion of a news source.
   const handleDeleteSource = async (id: number) => {
     try {
       await newsService.deleteSource(id);
       message.success('Source deleted successfully');
-      loadSources();
+      loadSources(); // Refresh the list
     } catch (error) {
       console.error('Failed to delete source:', error);
-      message.error('Failed to delete source');
+      message.error('Failed to delete source. Check console for details.');
     }
   };
+  // Shows the modal for adding a new news category.
   const handleAddCategoryClick = () => {
-    setNewCategoryName('');
+    setNewCategoryName(''); // Reset input field
     setIsAddCategoryModalVisible(true);
   };
 
+  // Handles creation of a new news category.
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
       message.error('Category name cannot be empty');
@@ -330,14 +393,16 @@ const SettingsContent: React.FC = () => {
     try {
       const newCategory = await newsService.createCategory({ name: newCategoryName });
       message.success('Category created successfully');
-      await loadCategories();
+      await loadCategories(); // Refresh category list
       setIsAddCategoryModalVisible(false);
+      // Optionally, select the new category in the source form if it's open
       sourceForm.setFieldsValue({ category_id: newCategory.id });
     } catch (error) {
       handleApiError(error, 'Failed to create category');
     }
   };
 
+  // Handles deletion of a news category tag.
   const handleDeleteCategoryTag = (categoryId: number) => {
     Modal.confirm({
       title: 'Confirm Deletion',
@@ -349,13 +414,14 @@ const SettingsContent: React.FC = () => {
         try {
           await newsService.deleteCategory(categoryId);
           message.success('Category deleted successfully');
-          await loadCategories();
+          await loadCategories(); // Refresh category list
         } catch (error) {
           handleApiError(error, 'Failed to delete category');
         }
       }
     });
   };
+  // Column definitions for the API Keys table.
   const apiKeyColumns: TableProps<ApiKey>['columns'] = [
     {
       title: 'Model',
@@ -365,7 +431,7 @@ const SettingsContent: React.FC = () => {
     {
       title: 'API Key',
       key: 'api_key',
-      render: () => '••••••••',
+      render: () => '••••••••', // Mask the API key for security
     },
     {
       title: 'Context',
@@ -377,10 +443,8 @@ const SettingsContent: React.FC = () => {
       dataIndex: 'max_output_tokens',
       key: 'max_output_tokens',
     },
-
-
     {
-      title: () => (
+      title: () => ( // Custom title with Add button
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Action</span>
           <Tooltip title="Add API Key">
@@ -425,6 +489,7 @@ const SettingsContent: React.FC = () => {
     },
   ];
 
+  // Column definitions for the News Sources table.
   const sourceColumns: TableProps<NewsSource>['columns'] = [
     {
       title: 'Name',
@@ -439,7 +504,7 @@ const SettingsContent: React.FC = () => {
     },
     {
       title: 'Category',
-      dataIndex: 'category',
+      dataIndex: 'category', // This should be category_id or category_name from backend
       key: 'category',
       render: (_, record) => {
         const category = categories.find(c => c.id === record.category_id);
@@ -447,7 +512,7 @@ const SettingsContent: React.FC = () => {
       },
     },
     {
-      title: () => (
+      title: () => ( // Custom title with Add button
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <span>Action</span>
           <Tooltip title="Add Source">
@@ -488,11 +553,13 @@ const SettingsContent: React.FC = () => {
     },
   ];
 
+  // Handles password change modal confirmation.
   const handlePasswordModalOk = async () => {
     try {
       const values = await passwordForm.validateFields();
       await handleChangePassword(values);
     } catch (formError) {
+      // Validation error, antd form handles message display
       console.log('Password form validation failed:', formError);
     }
   };
@@ -502,11 +569,13 @@ const SettingsContent: React.FC = () => {
     passwordForm.resetFields();
   };
 
+  // Handles username change modal confirmation.
   const handleUsernameModalOk = async () => {
     try {
       const values = await usernameForm.validateFields();
       await handleChangeUsername(values);
     } catch (formError) {
+      // Validation error
       console.log('Username form validation failed:', formError);
     }
   };
@@ -516,17 +585,17 @@ const SettingsContent: React.FC = () => {
     usernameForm.resetFields();
   };
 
+  // Submits username change request to the backend.
   const handleChangeUsername = async (values: any) => {
     setUsernameChangeLoading(true);
     try {
       const updatedUser = await authService.changeUsername({
         new_username: values.newUsername,
-        current_password: values.currentPassword,
+        current_password: values.currentPassword, // Password for verification
       });
       message.success('Username successfully changed!');
-      // Use updateUserProfile from context
       if (typeof updateUserProfile === 'function') {
-          updateUserProfile(updatedUser);
+          updateUserProfile(updatedUser); // Update user in AuthContext
       }
       setIsUsernameModalVisible(false);
       usernameForm.resetFields();
@@ -536,6 +605,7 @@ const SettingsContent: React.FC = () => {
       setUsernameChangeLoading(false);
     }
   };
+  // Submits password change request to the backend.
   const handleChangePassword = async (values: any) => {
     setPasswordChangeLoading(true);
     try {
@@ -559,7 +629,7 @@ const SettingsContent: React.FC = () => {
         <Col xs={24} sm={24} md={24} lg={23} xl={22}>
           <Title level={2} style={{ textAlign: 'center', marginBottom: '24px' }}>System Settings</Title>
 
-          {error && (
+          {error && ( // Global error display for initial load issues
             <Alert
               message="Error Loading Settings"
               description={error.message || "An unexpected error occurred while loading settings data."}
@@ -580,7 +650,9 @@ const SettingsContent: React.FC = () => {
                     <Button
                     icon={<ReloadOutlined />}
                     onClick={resetSettings}
+                    loading={loading && savingSettings} // Show loading if general load or save is in progress
                     >
+                      {/* Text can be added if not collapsed: Reset */}
                     </Button>
                   </Tooltip>
                 </Space>
@@ -591,12 +663,15 @@ const SettingsContent: React.FC = () => {
                     layout="vertical"
                     onFinish={saveSettings}
                   >
+                    {/* Dynamically render form items based on fetched settings */}
                     {Object.entries(settings).map(([key, value]) => (
                       <Form.Item
                         key={key}
                         name={key}
-                        label={key.replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase())}
+                        // Attempt to make label more readable
+                        label={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                       >
+                        {/* Basic input, could be enhanced based on value type if known */}
                         <Input />
                       </Form.Item>
                     ))}
@@ -620,7 +695,7 @@ const SettingsContent: React.FC = () => {
                   dataSource={apiKeys}
                     columns={apiKeyColumns}
                     rowKey="id"
-                    pagination={false}
+                    pagination={false} // Consider adding pagination if list can be long
                   />
                 </Spin>
             </TabPane>
@@ -629,70 +704,12 @@ const SettingsContent: React.FC = () => {
               tab={<><ApiOutlined /> News Sources</>}
               key="sources"
               >
-              <Table
+              <Table // Table for News Sources
               dataSource={sources}
-                columns={[
-                  {
-                    title: 'Name',
-                    dataIndex: 'name',
-                    key: 'name',
-                  },
-                  {
-                    title: 'URL',
-                    dataIndex: 'url',
-                    key: 'url',
-                    render: (text) => <a href={text} target="_blank" rel="noopener noreferrer">{text}</a>,
-                  },
-                  {
-                    title: 'Category',
-                    dataIndex: 'category',
-                    key: 'category',
-                    render: (_, record) => {
-                      const category = categories.find(c => c.id === record.category_id);
-                      return category ? category.name : '-';
-                    },
-                  },
-                  {
-                    title: () => (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>Action</span>
-                        <Tooltip title="Add Source">
-                          <Button
-                            type="primary"
-                            shape="circle"
-                            icon={<PlusOutlined />}
-                            size="small"
-                            onClick={(e) => { e.stopPropagation(); showAddSourceModal(); }}
-                          />
-                        </Tooltip>
-                      </div>
-                    ),
-                    key: 'actions',
-                    render: (_: any, record: NewsSource) => (
-                      <Space>
-                        <Tooltip title="Edit Source"><Button
-                          icon={<EditOutlined />}
-                          onClick={() => showEditSourceModal(record)}
-                          size="small"
-                        /></Tooltip>
-                        <Popconfirm
-                          title="Are you sure you want to delete this source?"
-                          onConfirm={() => handleDeleteSource(record.id)}
-                          okText="Yes"
-                          cancelText="No"
-                        >
-                          <Tooltip title="Delete Source"><Button
-                            danger
-                            icon={<DeleteOutlined />}
-                            size="small"
-                          /></Tooltip>
-                        </Popconfirm>
-                      </Space>
-                    ),
-                  },
-                ]}
+                columns={sourceColumns} // Uses sourceColumns defined earlier
                 rowKey="id"
-                loading={loading}
+                loading={loading && sources.length === 0} // Show loading if general load and no sources yet
+                pagination={{ pageSize: 5 }} // Example pagination
               />
             </TabPane>
 
@@ -711,6 +728,7 @@ const SettingsContent: React.FC = () => {
                         </Button>
                       </Space>
                     </Form.Item>
+                    {/* Add other user info if available, e.g., email, ID */}
                   </Form>
                 </Spin>
               </Card>
@@ -733,11 +751,11 @@ const SettingsContent: React.FC = () => {
                   danger
                   icon={<LogoutOutlined />}
                   onClick={async () => {
-                    message.loading('Logging out...', 0.5);
+                    message.loading('Logging out...', 0.5); // Brief visual feedback
                     await logout();
-                    // Redirection is handled by AuthContext
+                    // Redirection is handled by AuthContext after logout
                   }}
-                  loading={authLoading}
+                  loading={authLoading} // Disable button while auth operations are in progress
                 >
                   Logout
                 </Button>
@@ -748,6 +766,7 @@ const SettingsContent: React.FC = () => {
             </TabPane>
           </Tabs>
 
+          {/* Modal for Changing Username */}
           <Modal
             title="Change Username"
             open={isUsernameModalVisible}
@@ -755,7 +774,7 @@ const SettingsContent: React.FC = () => {
             onCancel={handleUsernameModalCancel}
             confirmLoading={usernameChangeLoading}
             okText="Update Username"
-            destroyOnClose
+            destroyOnClose // Reset form state when modal is closed
           >
             <Form form={usernameForm} layout="vertical" name="change_username_form_modal">
               <Form.Item
@@ -778,18 +797,19 @@ const SettingsContent: React.FC = () => {
             </Form>
           </Modal>
 
+          {/* Modal for Adding/Editing API Key */}
           <Modal
-            title={editingApiKey ? 'Edit API Key' : 'Add API Key'}
+            title={editingApiKeyId ? 'Edit API Key' : 'Add API Key'}
             open={isApiKeyModalVisible}
             onOk={handleApiKeySave}
             onCancel={() => setIsApiKeyModalVisible(false)}
-            okText={editingApiKey ? 'Update' : 'Create'}
+            okText={editingApiKeyId ? 'Update' : 'Create'}
             cancelText="Cancel"
           >
             <Form
               form={apiKeyForm}
               layout="vertical"
-              initialValues={{ context: 16000, max_output_tokens: 4000 }}
+              initialValues={{ context: 16000, max_output_tokens: 4000 }} // Default values
             >
               <Form.Item
                 name="model"
@@ -832,12 +852,13 @@ const SettingsContent: React.FC = () => {
                 rules={[
                   { required: true, message: 'Please enter the max output tokens' },
                   { type: 'number', min: 1, message: 'Max output tokens must be a positive integer' },
+                  // Validator to ensure max_output_tokens <= context
                   ({ getFieldValue }) => ({
                     validator(_, value) {
-                      if (!value || getFieldValue('context') > value) {
+                      if (!value || getFieldValue('context') >= value) { // Corrected logic
                       return Promise.resolve();
                       }
-                      return Promise.reject(new Error('Context length must be greater than or equal to max output tokens'));
+                      return Promise.reject(new Error('Max output tokens cannot exceed context length.'));
                     },
                   }),
                 ]}
@@ -847,13 +868,14 @@ const SettingsContent: React.FC = () => {
 
               <Form.Item
                 name="description"
-                label="Description"
+                label="Description" // Optional field
               >
-                <Input.TextArea placeholder="Optional description" />
+                <Input.TextArea placeholder="Optional description for this API key" />
               </Form.Item>
             </Form>
           </Modal>
 
+          {/* Modal for Changing Password */}
           <Modal
             title="Change Password"
             open={isPasswordModalVisible}
@@ -861,7 +883,7 @@ const SettingsContent: React.FC = () => {
             onCancel={handlePasswordModalCancel}
             confirmLoading={passwordChangeLoading}
             okText="Update Password"
-            destroyOnClose
+            destroyOnClose // Reset form state when modal is closed
           >
             <Form
               form={passwordForm}
@@ -882,14 +904,14 @@ const SettingsContent: React.FC = () => {
                   { required: true, message: 'Please input your new password!' },
                   { min: 6, message: 'Password must be at least 6 characters.' },
                 ]}
-                hasFeedback
+                hasFeedback // Shows validation status icon
               >
                 <Input.Password prefix={<LockOutlined />} placeholder="New Password" />
               </Form.Item>
               <Form.Item
                 name="confirmNewPassword"
                 label="Confirm New Password"
-                dependencies={['newPassword']}
+                dependencies={['newPassword']} // Validates against newPassword field
                 hasFeedback
                 rules={[
                   { required: true, message: 'Please confirm your new password!' },
@@ -908,6 +930,7 @@ const SettingsContent: React.FC = () => {
             </Form>
           </Modal>
 
+          {/* Modal for Adding/Editing News Source */}
           <Modal
             title={editingSourceId ? 'Edit Source' : 'Add Source'}
             open={isSourceModalVisible}
@@ -915,7 +938,7 @@ const SettingsContent: React.FC = () => {
             onCancel={() => setIsSourceModalVisible(false)}
             okText={editingSourceId ? 'Update' : 'Create'}
             cancelText="Cancel"
-            width={600}
+            width={600} // Wider modal for better form layout
           >
             <Form form={sourceForm} layout="vertical">
               <Form.Item
@@ -923,7 +946,7 @@ const SettingsContent: React.FC = () => {
                 label="Source Name"
                 rules={[{ required: true, message: 'Please enter the source name' }]}
               >
-                <Input />
+                <Input placeholder="e.g., BBC News" />
               </Form.Item>
 
               <Form.Item
@@ -934,12 +957,12 @@ const SettingsContent: React.FC = () => {
                   { type: 'url', message: 'Please enter a valid URL' }
                 ]}
               >
-                <Input />
+                <Input placeholder="e.g., https://www.bbc.com/news" />
               </Form.Item>
 
               <Form.Item
                 name="category_id"
-                label={
+                label={ // Custom label with "Add Category" button
                   <Space>
                     <span>Category</span>
                     <Button
@@ -954,13 +977,14 @@ const SettingsContent: React.FC = () => {
                 }
                 rules={[{ required: true, message: 'Please select a category' }]}
               >
-                <Select>
+                <Select placeholder="Select a category">
                   {categories.map(category => (
                     <Option key={category.id} value={category.id}>{category.name}</Option>
                   ))}
                 </Select>
               </Form.Item>
 
+              {/* Display existing categories with delete option */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ marginBottom: 8 }}>Existing Categories:</div>
                 <div>
@@ -969,7 +993,7 @@ const SettingsContent: React.FC = () => {
                       key={category.id}
                       closable
                       onClose={(e) => {
-                        e.preventDefault();
+                        e.preventDefault(); // Prevent default tag close behavior if any
                         handleDeleteCategoryTag(category.id);
                       }}
                       style={{ marginBottom: 8 }}
@@ -982,6 +1006,7 @@ const SettingsContent: React.FC = () => {
             </Form>
           </Modal>
 
+          {/* Modal for Adding New Category */}
           <Modal
             title="Add New Category"
             open={isAddCategoryModalVisible}
@@ -993,7 +1018,7 @@ const SettingsContent: React.FC = () => {
             <Form layout="vertical">
               <Form.Item
                 label="Category Name"
-                rules={[{ required: true, message: 'Please enter the category name' }]}
+                // Validation can be added here if using Form instance for this modal
               >
                 <Input
                   value={newCategoryName}
@@ -1005,7 +1030,7 @@ const SettingsContent: React.FC = () => {
           </Modal>
         </Col>
       </Row>
-    </div> // Changed from MainLayout to a simple div or fragment
+    </div>
   );
 };
 

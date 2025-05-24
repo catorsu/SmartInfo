@@ -402,6 +402,33 @@ class NewsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# NEW MODEL FOR PAGINATED NEWS ITEMS RESPONSE
+class NewsItemsPage(BaseModel):
+    """
+    Schema for a paginated list of news items.
+    Includes the list of items for the current page and the total count of
+    items matching the query across all pages.
+    """
+
+    items: List[NewsResponse] = Field(
+        ..., description="A list of news items for the current page."
+    )
+    total: int = Field(
+        ...,
+        description="The total number of news items matching the filter criteria across all pages.",
+        examples=[100, 253],
+    )
+    page: Optional[int] = Field(
+        None, description="The current page number (1-indexed).", examples=[1, 5]
+    )
+    page_size: Optional[int] = Field(
+        None, description="The number of items per page.", examples=[10, 20]
+    )
+    # total_pages: Optional[int] = Field(None, description="Total number of pages available.") # Can be calculated if needed
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class FetchSourceRequest(BaseModel):
     """Schema for requesting news fetching from a specific source ID."""
 

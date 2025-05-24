@@ -117,8 +117,9 @@ Each flow outlines the user's goal, entry points, key components involved, a seq
         *   `onChange` handler updates `filters.page`.
         *   `loadNews` is called, new API request (with `page` parameter), list re-renders.
     5.  **Toggle Filter Visibility:**
-        *   User clicks the `FilterOutlined` `FloatButton` (managed by `MainLayout`, visibility controlled by `NewsPage`'s `isFilterRowVisible` state).
-        *   The filter row's visibility toggles.
+    *   User clicks the `FilterOutlined` `FloatButton` (managed by `MainLayout`, visibility controlled by `NewsPage`'s `isFilterRowVisible` state).
+    *   The filter row's visibility toggles.
+    *   When visible, the filter row is sticky and remains at the top of the viewport as the user scrolls the main page content.
 *   **Key State Management Contexts Used:** None directly for filtering/display, mainly local component state in `NewsPage`. `AuthContext` for authentication.
 *   **Outcome:** User can view a dynamically updated list of news items based on their selected criteria.
 

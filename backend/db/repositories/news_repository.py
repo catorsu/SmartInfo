@@ -418,12 +418,14 @@ class NewsRepository(BaseRepository):
         search_term: Optional[str] = None,
         fetch_date: Optional[date] = None,
         sort_by: Optional[str] = None,
-    ) -> List[asyncpg.Record]:
+    ) -> Tuple[List[asyncpg.Record], int]:
         """
-        Retrieves news items with various filters, pagination, and sorting.
+        Retrieves news items with various filters, pagination, and sorting,
+        along with the total count of matching items.
 
         Includes full `content` in the selection, which might be large.
-        Uses 'simple' FTS config if `search_term` is provided.
+        Uses 'zhparsercfg' FTS config if `search_term` is provided, optimized
+        for Chinese and general text search.
 
         Args:
             user_id (int): The user's ID.
@@ -439,13 +441,16 @@ class NewsRepository(BaseRepository):
             sort_by (Optional[str]): Sorting option, e.g., 'created_at_desc'.
 
         Returns:
-            List[asyncpg.Record]: Filtered and paginated list of news items.
+            Tuple[List[asyncpg.Record], int]: A tuple containing:
+                - A list of `asyncpg.Record` objects for the current page.
+                - An integer representing the total count of items matching
+                  the filters (before pagination).
 
         Raises:
             asyncpg.PostgresError: If a database error occurs.
 
         Side Effects:
-            - Executes a complex SELECT query with dynamic conditions.
+            - Executes complex SELECT queries with dynamic conditions.
             - Logs errors.
         """
         select_fields = f"""
@@ -454,75 +459,102 @@ class NewsRepository(BaseRepository):
             {News.SUMMARY}, {News.ANALYSIS}, {News.DATE}, {News.CONTENT}, -- Content included
             {News.USER_ID}, {News.CREATED_AT}, {News.TOP_IMAGE}, {News.TASK_GROUP_ID}
         """
-        base_query = (
-            f"SELECT {select_fields} FROM {News.TABLE_NAME} WHERE {News.USER_ID} = $1"
-        )
 
-        params_list: List[Any] = [user_id]
-        conditions: List[str] = []
-        param_idx = 2  # Start indexing from $2 for additional params
+        # Build conditions and parameters for filtering
+        filter_conditions_list: List[str] = []
+        # Parameters for the WHERE clause of both count and items query
+        filter_params_list: List[Any] = [user_id]
+        current_param_idx = 2  # Start indexing from $2 for filter parameters
 
         if category_id is not None:
-            conditions.append(f"{News.CATEGORY_ID} = ${param_idx}")
-            params_list.append(category_id)
-            param_idx += 1
+            filter_conditions_list.append(f"{News.CATEGORY_ID} = ${current_param_idx}")
+            filter_params_list.append(category_id)
+            current_param_idx += 1
         if source_id is not None:
-            conditions.append(f"{News.SOURCE_ID} = ${param_idx}")
-            params_list.append(source_id)
-            param_idx += 1
+            filter_conditions_list.append(f"{News.SOURCE_ID} = ${current_param_idx}")
+            filter_params_list.append(source_id)
+            current_param_idx += 1
         if analyzed is not None:
             if analyzed:
-                conditions.append(
+                filter_conditions_list.append(
                     f"({News.ANALYSIS} IS NOT NULL AND {News.ANALYSIS} <> '')"
                 )
             else:
-                conditions.append(f"({News.ANALYSIS} IS NULL OR {News.ANALYSIS} = '')")
+                filter_conditions_list.append(
+                    f"({News.ANALYSIS} IS NULL OR {News.ANALYSIS} = '')"
+                )
         if search_term:
-            # Using 'simple' FTS configuration. Ensure 'zhparsercfg' is used if Chinese FTS is set up.
-            conditions.append(
+            filter_conditions_list.append(
                 f"""
-                to_tsvector('simple',
+                to_tsvector('zhparsercfg',
                     COALESCE({News.TITLE}, '') || ' ' || COALESCE({News.SUMMARY}, '') || ' ' ||
                     COALESCE({News.SOURCE_NAME}, '') || ' ' || COALESCE({News.CATEGORY_NAME}, '')
-                ) @@ plainto_tsquery('simple', ${param_idx})
+                ) @@ plainto_tsquery('zhparsercfg', ${current_param_idx})
                 """
             )
-            params_list.append(search_term)
-            param_idx += 1
+            filter_params_list.append(search_term)
+            current_param_idx += 1
         if fetch_date is not None:
-            conditions.append(f"DATE({News.CREATED_AT}) = ${param_idx}")
-            params_list.append(fetch_date)
-            param_idx += 1
+            filter_conditions_list.append(
+                f"DATE({News.CREATED_AT}) = ${current_param_idx}"
+            )
+            filter_params_list.append(fetch_date)
+            current_param_idx += 1  # Ensure param_idx is incremented for fetch_date
 
-        if conditions:
-            base_query += " AND " + " AND ".join(conditions)
+        where_clause = f"WHERE {News.USER_ID} = $1"
+        if filter_conditions_list:
+            where_clause += " AND " + " AND ".join(filter_conditions_list)
 
-        # Sorting
-        order_clause = (
-            f"ORDER BY {News.CREATED_AT} DESC, {News.ID} DESC"  # Default sort
+        # Construct and execute the count query
+        count_query_str = f"SELECT COUNT(*) FROM {News.TABLE_NAME} {where_clause}"
+        count_params = tuple(filter_params_list)
+
+        total_count = 0
+        try:
+            count_result = await self._fetchval(count_query_str, count_params)
+            total_count = count_result if count_result is not None else 0
+        except asyncpg.PostgresError as e:
+            logger.error(
+                f"Error executing count query in get_news_with_filters for user {user_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
+        # Construct the query for fetching items (with sorting and pagination)
+        items_query_str = (
+            f"SELECT {select_fields} FROM {News.TABLE_NAME} {where_clause}"
         )
+
+        order_clause = f"ORDER BY {News.CREATED_AT} DESC, {News.ID} DESC"
         if sort_by == "created_at_asc":
             order_clause = f"ORDER BY {News.CREATED_AT} ASC, {News.ID} ASC"
         elif sort_by == "title_asc":
             order_clause = f"ORDER BY {News.TITLE} ASC, {News.ID} DESC"
         elif sort_by == "title_desc":
             order_clause = f"ORDER BY {News.TITLE} DESC, {News.ID} DESC"
-        # Add more sort options as needed
 
-        base_query += f" {order_clause}"
+        items_query_str += f" {order_clause}"
 
-        # Pagination
         offset = (page - 1) * page_size
-        base_query += f" LIMIT ${param_idx} OFFSET ${param_idx + 1}"
-        params_list.extend([page_size, offset])
 
-        final_params = tuple(params_list)
+        # Parameters for items query include filter params + pagination params
+        # Placeholder indices for LIMIT and OFFSET are determined by the number of filter parameters already added.
+        limit_placeholder_idx = len(filter_params_list) + 1
+        offset_placeholder_idx = len(filter_params_list) + 2
+
+        items_query_str += (
+            f" LIMIT ${limit_placeholder_idx} OFFSET ${offset_placeholder_idx}"
+        )
+
+        final_items_params = tuple(filter_params_list + [page_size, offset])
 
         try:
-            return await self._fetchall(base_query, final_params)
+            result_records = await self._fetchall(items_query_str, final_items_params)
+            return result_records, total_count
         except asyncpg.PostgresError as e:
             logger.error(
-                f"Error in get_news_with_filters for user {user_id}: {e}", exc_info=True
+                f"Error executing items query in get_news_with_filters for user {user_id}: {e}",
+                exc_info=True,
             )
             raise
         except Exception as e:
@@ -753,14 +785,13 @@ class NewsRepository(BaseRepository):
         search_term: Optional[str] = None,
         fetch_date: Optional[date] = None,
         sort_by: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
-        Retrieves news items with filters, returning them as a list of dictionaries.
+        Retrieves news items with filters, returning them as a dictionary
+        containing the items list and the total count.
 
         This method calls `get_news_with_filters` and then converts each
-        `asyncpg.Record` into a dictionary. `None` values in records are
-        converted to empty strings for potentially easier JSON serialization,
-        though Pydantic models usually handle `None` correctly.
+        `asyncpg.Record` into a dictionary.
 
         Args:
             user_id (int): User's ID.
@@ -774,12 +805,14 @@ class NewsRepository(BaseRepository):
             sort_by (Optional[str]): Sorting option.
 
         Returns:
-            List[Dict[str, Any]]: List of news items as dictionaries.
+            Dict[str, Any]: A dictionary with two keys:
+                - "items": List[Dict[str, Any]] - List of news items as dictionaries.
+                - "total": int - Total count of items matching the filters.
 
         Side Effects:
             - Calls `get_news_with_filters`.
         """
-        result_records = await self.get_news_with_filters(
+        result_records, total_count = await self.get_news_with_filters(
             user_id=user_id,
             category_id=category_id,
             source_id=source_id,
@@ -791,18 +824,9 @@ class NewsRepository(BaseRepository):
             sort_by=sort_by,
         )
 
-        result_dicts: List[Dict[str, Any]] = []
-        for record in result_records:
-            item_dict = dict(record)
-            # Clean up None values for better JSON serialization if needed,
-            # but Pydantic models handle None correctly.
-            # This conversion to "" might be undesirable if None has semantic meaning.
-            # Consider removing this loop if Pydantic models are the final destination.
-            # for key, value in item_dict.items():
-            #     if value is None:
-            #         item_dict[key] = "" # Or keep as None
-            result_dicts.append(item_dict)
-        return result_dicts
+        result_dicts: List[Dict[str, Any]] = [dict(record) for record in result_records]
+
+        return {"items": result_dicts, "total": total_count}
 
     async def get_analysis_by_id(self, news_id: int, user_id: int) -> Optional[str]:
         """

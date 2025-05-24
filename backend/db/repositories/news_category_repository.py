@@ -447,7 +447,7 @@ class NewsCategoryRepository(BaseRepository):
                 f"due to existing dependent records (this suggests ON DELETE RESTRICT or similar): {e}",
                 exc_info=True,
             )
-            raise  # Or return False
+            raise
         except asyncpg.PostgresError as e:
             logger.error(
                 f"Error deleting category {category_id} for user {user_id}: {e}",

@@ -41,6 +41,9 @@ poetry.lock
 *.swo
 .DS_Store
 
+# docker
+docker-compose.yml
+
 # node_modules
 node_modules/
 package-lock.json
@@ -71,8 +74,11 @@ pytest.ini
 # test_*.py
 # tests/
 __tests__/
+test.py
 clear_redis_key.py
 mcptestconfig.json
-.txt
+*.txt
+mcptestconfig.json
+
 # docs/memory-bank/
 memory-bank/

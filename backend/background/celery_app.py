@@ -28,11 +28,7 @@ logging.getLogger("jieba").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
-# URL for the Celery message broker (Redis).
-# Reads from the REDIS_URL environment variable.
 BROKER_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
-# URL for the Celery result backend (Redis).
-# Reads from the REDIS_BACKEND_URL environment variable.
 BACKEND_URL = os.getenv("REDIS_BACKEND_URL", "redis://127.0.0.1:6379/1")
 
 
@@ -40,7 +36,7 @@ celery_app = Celery(
     "background",
     broker=BROKER_URL,
     backend=BACKEND_URL,
-    include=["background.tasks.news_tasks"],  # Corrected module path
+    include=["background.tasks.news_tasks"],
 )
 
 
@@ -51,7 +47,7 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
-    worker_prefetch_multiplier=1,  # Prevents worker from fetching too many tasks at once
+    worker_prefetch_multiplier=1,
 )
 
 

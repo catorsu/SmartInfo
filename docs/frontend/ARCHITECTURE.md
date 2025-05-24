@@ -82,7 +82,7 @@ graph TD
 *   **Documentation:** Refer to `COMPONENT_LIBRARY_GUIDE.md` for an overview and guidelines. Individual components have JSDoc comments.
 
 ### 4.3. Layout Component (`frontend/src/components/layout/MainLayout.tsx`)
-*   **Responsibility:** Provides the consistent shell for all authenticated views of the application. This includes the sidebar for navigation, main content area, and potentially global elements like a header or footer.
+*   **Responsibility:** Provides the consistent shell for all authenticated views of the application. This includes the sidebar for navigation, main content area, and potentially global elements like a header or footer. The main content area is designed to allow the browser's native scrollbar to manage page overflow, enabling child elements (like sticky headers within pages) to position themselves relative to the viewport.
 *   **Key Features:**
     *   Integrates `AuthContext` for user-related information and logout functionality.
     *   Manages the display of global modals (e.g., Settings) and drawers (e.g., Task Progress) often triggered via `PageActionContext`.

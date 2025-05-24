@@ -69,7 +69,7 @@ class ApiKeyRepository(BaseRepository):
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING {ApiConfig.ID}
         """
-        params: Tuple[Any, ...] = (  # Explicitly typing params
+        params: Tuple[Any, ...] = (
             model,
             base_url,
             api_key,
@@ -91,12 +91,11 @@ class ApiKeyRepository(BaseRepository):
                 logger.warning(
                     f"Failed to add API key for model {model} for user {user_id}, no ID returned."
                 )
-            return record_id  # record_id is already Optional[Any], fetchval returns Optional[Any]
+            return record_id
         except asyncpg.PostgresError as e:
             logger.error(f"Error adding API key for user {user_id}: {e}", exc_info=True)
-            # Do not return None here, let the exception propagate if not handled by caller
             raise
-        except Exception as e:  # Catching generic Exception is broad
+        except Exception as e:
             logger.error(
                 f"Unexpected error adding API key for user {user_id}: {e}",
                 exc_info=True,
@@ -107,9 +106,9 @@ class ApiKeyRepository(BaseRepository):
         self,
         api_id: int,
         user_id: int,
-        model: str,  # Assuming model is required for an update
-        base_url: str,  # Assuming base_url is required
-        api_key: Optional[str] = None,  # API key can be optional if not changing
+        model: str,
+        base_url: str,
+        api_key: Optional[str] = None,
         context: Optional[int] = None,
         max_output_tokens: Optional[int] = None,
         description: Optional[str] = None,
@@ -167,8 +166,8 @@ class ApiKeyRepository(BaseRepository):
             WHERE {ApiConfig.ID} = $8 AND {ApiConfig.USER_ID} = $9
         """
         params: Tuple[Any, ...] = (
-            model,  # model is now required
-            base_url,  # base_url is now required
+            model,
+            base_url,
             (
                 api_key
                 if api_key is not None
@@ -210,7 +209,7 @@ class ApiKeyRepository(BaseRepository):
                 f"Error updating API key ID {api_id} for user {user_id}: {e}",
                 exc_info=True,
             )
-            raise  # Propagate DB errors
+            raise
         except Exception as e:
             logger.error(
                 f"Unexpected error updating API key ID {api_id} for user {user_id}: {e}",
@@ -377,10 +376,10 @@ class ApiKeyRepository(BaseRepository):
             logger.error(
                 f"Error getting API key count for user {user_id}: {e}", exc_info=True
             )
-            raise  # Or return 0 depending on desired error handling
+            raise
         except Exception as e:
             logger.error(
                 f"Unexpected error getting API key count for user {user_id}: {e}",
                 exc_info=True,
             )
-            raise  # Or return 0
+            raise

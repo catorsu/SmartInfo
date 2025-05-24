@@ -98,7 +98,7 @@ class BaseRepository:
         """
         try:
             async with self._get_connection_context() as conn:
-                status_string: Optional[str] = await conn.execute(query, *params)  # type: ignore[union-attr]
+                status_string: Optional[str] = await conn.execute(query, *params)
                 return status_string
         except asyncpg.PostgresError as e:
             logger.error(
@@ -136,7 +136,7 @@ class BaseRepository:
         """
         try:
             async with self._get_connection_context() as conn:
-                await conn.executemany(query, params_list)  # type: ignore[union-attr]
+                await conn.executemany(query, params_list)
                 return True
         except asyncpg.PostgresError as e:
             logger.error(
@@ -173,7 +173,7 @@ class BaseRepository:
         """
         try:
             async with self._get_connection_context() as conn:
-                return await conn.fetchval(query, *params)  # type: ignore[union-attr]
+                return await conn.fetchval(query, *params)
         except asyncpg.PostgresError as e:
             logger.error(
                 f"Error fetching value: {query} with params {params}. Error: {e}",
@@ -210,7 +210,7 @@ class BaseRepository:
         """
         try:
             async with self._get_connection_context() as conn:
-                return await conn.fetchrow(query, *params)  # type: ignore[union-attr]
+                return await conn.fetchrow(query, *params)
         except asyncpg.PostgresError as e:
             logger.error(
                 f"Error fetching one row: {query} with params {params}. Error: {e}",
@@ -247,7 +247,7 @@ class BaseRepository:
         """
         try:
             async with self._get_connection_context() as conn:
-                return await conn.fetch(query, *params)  # type: ignore[union-attr]
+                return await conn.fetch(query, *params)
         except asyncpg.PostgresError as e:
             logger.error(
                 f"Error fetching all rows: {query} with params {params}. Error: {e}",

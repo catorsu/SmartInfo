@@ -64,7 +64,7 @@ class ChatRepository(BaseRepository):
                 logger.warning(
                     f"Failed to create chat for user {user_id}, no ID returned from database."
                 )
-            return chat_id  # chat_id is already Optional[Any]
+            return chat_id
         except asyncpg.PostgresError as e:
             logger.error(
                 f"Failed to create chat for user {user_id}: {str(e)}", exc_info=True
@@ -114,12 +114,6 @@ class ChatRepository(BaseRepository):
 
         # Always update updated_at
         updates[Chats.UPDATED_AT] = datetime.now(timezone.utc)
-
-        if not updates:  # Should not happen as updated_at is always set
-            logger.warning(
-                f"No update data provided for chat ID {chat_id}, user {user_id}."
-            )
-            return False  # Or True if no change is considered success
 
         set_clauses = []
         param_idx = 1
@@ -339,10 +333,10 @@ class ChatRepository(BaseRepository):
             logger.error(
                 f"Failed to get chat count for user {user_id}: {str(e)}", exc_info=True
             )
-            raise  # Or return 0 depending on desired error handling
+            raise
         except Exception as e:
             logger.error(
                 f"Unexpected error getting chat count for user {user_id}: {str(e)}",
                 exc_info=True,
             )
-            raise  # Or return 0
+            raise

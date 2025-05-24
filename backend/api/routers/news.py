@@ -29,7 +29,7 @@ from celery import chord, group
 
 
 from models import (  # Import models directly
-    News,  # Keep for internal use if needed
+    News,
     NewsCreate,
     NewsUpdate,
     NewsSourceCreate,
@@ -45,6 +45,7 @@ from models import (  # Import models directly
     NewsCategoryResponse,
     NewsSourceResponse,
     NewsResponse,
+    NewsItemsPage,  # ADDED NewsItemsPage import
 )
 
 
@@ -67,15 +68,13 @@ router = APIRouter()
 
 @router.get(
     "/items",
-    response_model=List[NewsResponse],  # Updated response model
+    response_model=NewsItemsPage,  # MODIFIED response model
     summary="List user's news items",
     description="Retrieve a paginated list of news items belonging to the current user, optionally filtered.",
 )
 async def get_filtered_news_items(
     current_user: Annotated[User, Depends(get_current_active_user)],
-    news_service: Annotated[
-        NewsService, Depends(get_news_service)
-    ],  # Moved Depends before Query
+    news_service: Annotated[NewsService, Depends(get_news_service)],
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     source_id: Optional[int] = Query(None, description="Filter by source ID"),
     analyzed: Optional[bool] = Query(
@@ -89,28 +88,34 @@ async def get_filtered_news_items(
     fetch_date: Optional[date] = Query(
         None,
         description="Filter by the date news items were fetched/created (YYYY-MM-DD)",
-    ),  # New Query parameter
+    ),
     sort_by: Optional[str] = Query(
         None, description="Sort order (e.g., 'created_at_desc')"
-    ),  # New Query parameter
+    ),
 ):
     """
     Retrieve news items for the current user with various filtering options.
     """
     try:
-        news_items = await news_service.get_news_with_filters(
-            user_id=current_user.id,  # Pass user_id
+        # NewsService.get_news_with_filters now returns a dict: {"items": [...], "total": ...}
+        paginated_result = await news_service.get_news_with_filters(
+            user_id=current_user.id,
             category_id=category_id,
             source_id=source_id,
-            has_analysis=analyzed,
+            has_analysis=analyzed,  # Parameter name in service is has_analysis
             page=page,
             page_size=page_size,
             search_term=search_term,
-            fetch_date=fetch_date,  # Pass new parameter
-            sort_by=sort_by,  # Pass new parameter
+            fetch_date=fetch_date,
+            sort_by=sort_by,
         )
-        # Service method returns dicts, FastAPI handles response model validation
-        return news_items
+        # Construct the NewsItemsPage response
+        return NewsItemsPage(
+            items=paginated_result["items"],
+            total=paginated_result["total"],
+            page=page,
+            page_size=page_size,
+        )
     except Exception as e:
         logger.exception(
             "Failed to retrieve filtered news items for user", exc_info=True
@@ -996,7 +1001,7 @@ async def trigger_analyze_news_by_ids(
 )
 async def analyze_arbitrary_content(
     request: AnalyzeContentRequest,
-    # current_user: Annotated[User, Depends(get_current_active_user)], # Add if saving results per user
+    current_user: Annotated[User, Depends(get_current_active_user)],
     news_service: Annotated[NewsService, Depends(get_news_service)],
 ):
     """Analyze arbitrary text content using the LLM. (Currently not user-specific)."""
@@ -1008,12 +1013,13 @@ async def analyze_arbitrary_content(
 
         # Assuming analyze_content_streaming doesn't need user_id unless saving results
         async def stream_generator():
-            # Need to await the coroutine returned by the service method
-            stream = await news_service.analyze_content_streaming(
-                content=request.content, instructions=request.instructions
+            async_gen = news_service.analyze_content_streaming(
+                user_id=current_user.id,
+                content=request.content,
+                instructions=request.instructions,
             )
-            async for chunk in stream:
-                yield f"{chunk}"
+            async for chunk in async_gen:
+                yield chunk
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
     except HTTPException:

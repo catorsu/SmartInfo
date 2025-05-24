@@ -174,7 +174,7 @@ Manages news items, sources, and categories for the authenticated user. Also inc
 
 *   **News Items (`/items`)**
     *   **`GET /api/news/items`**: Lists news items for the user. Supports pagination (`page`, `page_size`) and filtering (`category_id`, `source_id`, `analyzed`, `search_term`, `fetch_date`, `sort_by`).
-        *   **Success Response (200 OK):** `List[NewsResponse]`
+        *   **Success Response (200 OK):** `NewsItemsPage` schema (e.g., `{"items": List[NewsResponse], "total": int, "page": int, "page_size": int}`)
     *   **`POST /api/news/items`**: Creates a new news item.
         *   **Request Body:** `NewsCreate` schema.
         *   **Success Response (201 Created):** `NewsResponse`

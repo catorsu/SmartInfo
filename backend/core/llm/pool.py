@@ -89,7 +89,8 @@ class LLMClientPool:
         self._model = model
         self._context = context
         self._max_output_tokens = max_output_tokens
-        self._max_input_tokens = max(0, context - max_output_tokens)
+        # Ensure max_input_tokens is not negative if context is smaller than max_output_tokens
+        self._max_input_tokens = max(1024, context - max_output_tokens)
         self._timeout = timeout
         self._max_retries_client = max_retries_client
 
@@ -144,11 +145,9 @@ class LLMClientPool:
                         max_retries=self._max_retries_client,
                     )
                     clients_created.append(client)
-                    # Ensure queue is not None before putting item
                     if self._queue is not None:
                         await self._queue.put(client)
                     else:
-                        # This case should ideally not be reached if logic is correct
                         logger.error(
                             "LLMClientPool queue is None during client creation, aborting."
                         )
@@ -163,10 +162,9 @@ class LLMClientPool:
                         f"Failed to create AsyncLLMClient instance {i+1}: {client_error}",
                         exc_info=True,
                     )
-                    # Cleanup successfully created clients before raising
                     for created_client in clients_created:
                         await created_client.close()
-                    self._queue = None  # Reset queue
+                    self._queue = None
                     self._initializing = False
                     self._permanently_closed = False
                     raise RuntimeError(

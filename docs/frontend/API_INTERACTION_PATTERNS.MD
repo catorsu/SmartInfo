@@ -58,14 +58,12 @@ Direct use of the `api.ts` Axios instance in UI components is discouraged. Inste
     ```typescript
     // frontend/src/services/newsService.ts
     import api from './api';
-    import { NewsItem, NewsFilterParams } from '../utils/types';
+    import { NewsFilterParams, PaginatedNewsResponse } from '../utils/types'; // Import PaginatedNewsResponse
 
-    export const getNewsItems = async (params: NewsFilterParams): Promise<NewsItem[]> => {
-      // The actual API response might be { items: NewsItem[], total: number }
-      // This service might choose to return only items, or the full structure.
-      // Based on current code, it seems to return the direct response.data
-      const response = await api.get(`${BASE_PATH}/items`, { params });
-      return response.data; // Assuming response.data directly matches NewsItem[] or an object containing it
+    export const getNewsItems = async (params: NewsFilterParams): Promise<PaginatedNewsResponse> => {
+      // The backend API now returns an object: { items: NewsItem[], total: number, page?: number, page_size?: number }
+      const response = await api.get<PaginatedNewsResponse>(`${BASE_PATH}/items`, { params });
+      return response.data; 
     };
     ```
 *   **Return Values:** Service functions typically return a `Promise` that resolves with the `response.data` from the Axios call (the actual JSON payload from the backend).
@@ -91,28 +89,27 @@ UI components or pages that need to fetch or submit data typically follow this p
 *   Wrap the API call (to the service function) in a `try/catch` block.
     ```typescript
     // Example in a React component
+    // Assume 'totalItems' state exists: const [totalItems, setTotalItems] = useState<number>(0);
     useEffect(() => {
       const fetchNews = async () => {
         setIsLoading(true);
         setFetchError(null);
         try {
           const params: NewsFilterParams = { page: 1, page_size: 10 };
-          const result = await newsService.getNewsItems(params); // Assuming this returns the list directly
-          // If result is { items: [], total: 0 }, then:
-          // setNewsItems(result.items);
-          // setTotalItems(result.total);
-          setNewsItems(result); // Adjust based on actual service return
+          // newsService.getNewsItems now returns { items: NewsItem[], total: number, ... }
+          const response = await newsService.getNewsItems(params); 
+          setNewsItems(response.items);
+          setTotalItems(response.total); // Assuming you have a state for total items for pagination
         } catch (err) {
-          const errorDetails = extractErrorMessage(err); // From apiErrorHandler.ts
+          const errorDetails = extractErrorMessage(err); 
           setFetchError(errorDetails.message);
-          // Optionally use Ant Design message for user feedback
           // message.error(errorDetails.message);
         } finally {
           setIsLoading(false);
         }
       };
       fetchNews();
-    }, [/* dependencies for re-fetching */]);
+    }, [/* dependencies for re-fetching, e.g., filters.page, filters.page_size */]);
     ```
 
 ### 4.3. UI Feedback

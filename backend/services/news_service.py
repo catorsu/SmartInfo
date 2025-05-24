@@ -129,8 +129,9 @@ class NewsService:
         search_term: Optional[str] = None,
         fetch_date: Optional[date] = None,
         sort_by: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """Retrieves news items for a specific user based on various filter criteria.
+    ) -> Dict[str, Any]:
+        """Retrieves news items for a specific user based on various filter criteria,
+        including the total count of matching items.
 
         Args:
             user_id: The ID of the user.
@@ -144,8 +145,11 @@ class NewsService:
             sort_by: Optional field to sort the results by (e.g., 'fetch_date_desc').
 
         Returns:
-            A list of dictionaries, each representing a news item that matches
-            the filter criteria for the specified user.
+            A dictionary containing:
+                - "items": A list of dictionaries, each representing a news item
+                           that matches the filter criteria for the specified user.
+                - "total": An integer representing the total count of items
+                           matching the filters (before pagination).
 
         Side Effects:
             Reads news item data from the database using complex filtering.
@@ -661,6 +665,88 @@ class NewsService:
         new_source_dict = await self.get_source_by_id(source_id, user_id)
         return new_source_dict
 
+    async def analyze_content_streaming(
+        self, user_id: int, content: str, instructions: str
+    ) -> AsyncGenerator[str, None]:
+        """
+        Analyzes arbitrary text content using the LLM based on provided instructions
+        for a specific user and streams the analysis.
+
+        Args:
+            user_id: The ID of the user whose API key should be used.
+            content: The text content to analyze.
+            instructions: Instructions for the LLM on how to analyze the content.
+
+        Yields:
+            str: Chunks of the analysis text or error messages.
+
+        Side Effects:
+            Makes external LLM calls.
+            Logs information, warnings, or errors related to the process.
+        """
+        logger.info(
+            f"Initiating arbitrary content analysis stream for user_id: {user_id}."
+        )
+        llm_client: Optional[AsyncLLMClient] = (
+            None  # Variable to hold the client instance
+        )
+        try:
+            # Get the client. _get_user_llm_client might return None or raise an exception.
+            raw_llm_client = await self._get_user_llm_client(user_id)
+            if raw_llm_client is None:
+                logger.warning(
+                    f"No valid LLM client for user {user_id}. Cannot perform arbitrary content analysis."
+                )
+                yield "Error: LLM client could not be initialized. Please check your API key configuration."
+                return
+
+            llm_client = raw_llm_client  # Assign to the variable in the broader scope for the finally block
+
+            user_prompt = f'{instructions}\\n\\nAnalyze the following content:\\n\\"\\"\\"{content}\\"\\"\\"'
+            logger.info(
+                f"Streaming arbitrary content analysis from LLM for user_id: {user_id}."
+            )
+
+            # Use the client as an async context manager
+            async with llm_client as client_instance:
+                llm_response_stream = client_instance.stream_completion_content(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an AI assistant performing content analysis based on user instructions.",
+                        },
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    max_tokens=4096,
+                    temperature=0.7,
+                )
+                async for chunk in llm_response_stream:
+                    yield chunk
+
+            logger.info(
+                f"LLM stream completed for arbitrary content analysis for user {user_id}."
+            )
+
+        except Exception as e_stream:
+            logger.error(
+                f"Error during arbitrary content analysis streaming for user_id: {user_id}: {e_stream}",
+                exc_info=True,
+            )
+            yield f"Error during analysis process: {str(e_stream)}"
+        finally:
+            if llm_client:  # If client was obtained
+                try:
+                    # Attempt to close it, similar to stream_analysis_for_news_item
+                    if hasattr(llm_client, "close") and callable(llm_client.close):
+                        await llm_client.close()
+                    logger.debug(
+                        f"LLM client explicitly handled in finally block for arbitrary content analysis, user {user_id}."
+                    )
+                except Exception as e_close:
+                    logger.error(
+                        f"Error closing LLM client in finally block for arbitrary content analysis, user {user_id}: {e_close}"
+                    )
+
     async def stream_analysis_for_news_item(
         self, news_id: int, user_id: int, force: bool = False
     ) -> AsyncGenerator[str, None]:
@@ -766,32 +852,6 @@ class NewsService:
             yield f"Error during analysis process: {str(e_stream)}"
         finally:
             if llm_client:  # Check if client was initialized
-                # AsyncLLMClient's __aexit__ (from async with) handles closure.
-                # Explicit close might be redundant if async with was entered.
-                # If an error occurred before async with, then it might need closing.
-                # For safety, call close if it has a close method and wasn't part of a completed async with.
-                # However, the current structure suggests `async with` will manage it if reached.
-                # If an error happens before `async with` (e.g. during `_get_user_llm_client` or content fetch),
-                # llm_client might be None or an instance.
-                # Let's assume _get_user_llm_client returns a client that should be closed if not None.
-                # The `async with` handles closure if it's entered.
-                # If it's not entered due to an earlier return, or if an exception occurs before it,
-                # we might need to close.
-                # A simple `if llm_client and hasattr(llm_client, 'close'): await llm_client.close()` could be an option,
-                # but AsyncLLMClient is expected to be an async context manager.
-                # The `async with` block should handle its closure correctly on exit or exception.
-                # If `_get_user_llm_client` itself raises, `llm_client` isn't assigned.
-                # If `_get_user_llm_client` returns a client, and then `get_analysis_by_id` or `get_content_by_id` raises,
-                # the client exists but `async with` wasn't entered.
-                # Let's refine the finally block to close if client exists and `async with` wasn't used for it.
-                # The issue is knowing if `__aexit__` was called.
-                # A simpler approach: if `llm_client` was successfully initialized, and an error occurred *before* `async with`,
-                # or if `async with` was bypassed (e.g. `if not force` block returning early), it needs manual close.
-
-                # Simplification for `finally`: if `llm_client` was initialized, try to close it.
-                # If `async with` completed or exited due to an error, `close` might be called twice
-                # but well-behaved clients usually handle this.
-                # This is safer than potentially leaking a client.
                 try:
                     if hasattr(llm_client, "close") and callable(llm_client.close):
                         await llm_client.close()

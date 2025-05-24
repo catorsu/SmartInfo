@@ -184,4 +184,4 @@ These are **critical** for AI understanding of how to use specific pieces of cod
 
 *   **Comments as Code:** Treat comments and docstrings as integral parts of the codebase.
 *   **Review Process:** Code reviews **MUST** include a review of associated comments and docstrings for clarity, accuracy, and completeness according to this guide.
-*   **Updates:** When code logic changes, the corresponding comments and docstrings **MUST** be updated in the same commit/PR.
+*   **Code Changes and Documentation Synchronization:** Whenever code logic is changed, refactored, or modified, all corresponding comments and docstrings MUST be updated within the same commit/PR to accurately reflect the new state and behavior. These updated comments and docstrings must strictly adhere to all guidelines within this document. Avoid introducing inline comments that are redundant (e.g., restating type information already clear from type hints, or explaining obvious code mechanics) or do not add explanatory value as defined herein. The primary focus is on maintaining purposeful and accurate documentation for the current state of the codebase.

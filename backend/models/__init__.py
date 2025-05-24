@@ -25,6 +25,7 @@ from models.schemas.news import (
     NewsSourceResponse,
     NewsResponse,
     FetchHistoryItemResponse,
+    NewsItemsPage,  # ADDED NewsItemsPage
 )
 from models.schemas.api_key import (
     ApiKey,
@@ -73,6 +74,7 @@ __all__ = [
     "AnalysisResult",
     "UpdateAnalysisRequest",
     "FetchHistoryItemResponse",
+    "NewsItemsPage",  # ADDED NewsItemsPage
     "ApiKey",
     "ApiKeyCreate",
     "UserPreference",

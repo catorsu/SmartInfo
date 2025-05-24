@@ -1,52 +1,58 @@
-/* frontend/src/components/layout/MainLayout.module.css */
+/*
+ * @file MainLayout.module.css
+ * @description Styles for the MainLayout component, including the sidebar,
+ * chat list, menu items, and various interactive elements. Uses CSS Modules.
+ */
 
+/* --- Sider Chat Menu Specifics --- */
 .siderChatMenu .ant-menu-item .ant-space {
-    /* Ensure Space takes full width for proper alignment */
+    /* Ensure Space takes full width for proper alignment of chat item content. */
     width: 100%;
 }
 
 .chatDeleteButton {
     visibility: hidden;
-    /* Hide by default */
+    /* Hide by default, shown on hover or selection. */
     opacity: 0.6;
     transition: opacity 0.2s ease-in-out;
 }
 
 .siderChatMenu .ant-menu-item:hover .chatDeleteButton {
     visibility: visible;
-    /* Show on menu item hover */
+    /* Show delete button on chat menu item hover. */
 }
 
 .chatDeleteButton:hover {
     opacity: 1;
     color: var(--ant-error-color) !important;
-    /* Use Ant Design's error color on hover */
+    /* Use Ant Design's error color for delete button on hover. */
 }
 
-/* Adjustments for selected item's delete button visibility */
+/* --- Selected Chat Item Delete Button Visibility --- */
 .siderChatMenu .ant-menu-item-selected .chatDeleteButton {
     visibility: visible;
-    /* Ensure delete button is visible on selected item too */
+    /* Ensure delete button is visible on selected chat item too. */
 }
 
+/* --- App Sider General Styles --- */
 .appSider .ant-menu {
     background: transparent !important;
-    /* Ensure menu itself is transparent if Sider has bg */
+    /* Ensure menu itself is transparent if Sider has a background color. */
     border-right: none !important;
 }
 
 .appSider .ant-menu-item {
     border-radius: var(--border-radius-base) !important;
-    /* Rounded menu items */
+    /* Rounded menu items for a softer look. */
     margin-bottom: 4px !important;
-    /* Space between menu items */
+    /* Space between menu items. */
     margin-left: 8px !important;
-    /* Indent items slightly */
+    /* Indent items slightly from the Sider edge. */
     margin-right: 8px !important;
     display: flex !important;
-    /* Added for vertical centering */
+    /* Use flex for vertical centering of item content. */
     align-items: center !important;
-    /* Added for vertical centering */
+    /* Vertical centering of item content. */
 }
 
 .appSider .ant-menu-item .ant-menu-title-content {
@@ -56,64 +62,69 @@
 }
 
 
-/* Style for selected menu item with left border */
+/* --- Selected Menu Item Indicator --- */
 .appSider .ant-menu-item-selected {
     font-weight: 500 !important;
-    /* Make selected item text bolder */
+    /* Make selected item text bolder for emphasis. */
     position: relative;
-    /* background-color: var(--tertiary-bg) !important; */ /* Reverted distinct background */
+    /* For positioning the ::before pseudo-element. */
+    /* background-color: var(--tertiary-bg) !important; */
+    /* Reverted distinct background for selected item. */
 }
 
 .appSider .ant-menu-item-selected::before {
     content: '';
     position: absolute;
     left: -8px;
-    /* Adjust to align with Sider padding or item margin */
+    /* Adjust to align with Sider padding or item margin, creating an outdent effect. */
     top: 25%;
-    /* Center vertically */
+    /* Center vertically. */
     bottom: 25%;
     width: 3px;
     background-color: var(--accent-color);
     border-radius: 0 2px 2px 0;
-    /* Optional: slightly rounded indicator */
+    /* Optional: slightly rounded indicator edge. */
     transition: all 0.2s ease-in-out;
 }
 
-/* Styling for the Sider Trigger Button */
-/* .appSider is the class of your Sider element in MainLayout.tsx */
+/* --- Sider Trigger Button Styling --- */
+/* .appSider is the class of the Sider element in MainLayout.tsx. */
 .appSider :global(.ant-layout-sider-trigger) {
     background-color: var(--secondary-bg) !important;
     color: var(--text-primary) !important;
     border-top: 1px solid var(--border-color) !important;
 }
 
-/* Optional: Styling for the hover state of the trigger */
+/* Optional: Styling for the hover state of the Sider trigger. */
 .appSider :global(.ant-layout-sider-trigger):hover {
     background-color: var(--tertiary-bg) !important;
     color: var(--accent-color) !important;
 }
 
+/* --- Chat Group Titles --- */
 .chatGroupTitle {
     display: block;
     margin-bottom: 8px;
     padding-left: 16px;
-    /* Align with menu item text */
+    /* Align with menu item text for consistency. */
     font-size: 11px !important;
-    /* Smaller */
+    /* Smaller font size for group titles. */
     font-weight: 600 !important;
-    /* Bolder */
+    /* Bolder font weight for group titles. */
     text-transform: uppercase;
     color: var(--text-secondary) !important;
     letter-spacing: 0.05em;
 }
 
+/* --- Sider Bottom Section --- */
 .siderBottomSection {
     position: absolute;
     bottom: 0;
     width: 100%;
     padding: 8px;
-    /* Reduced padding for bottom */
-    /* border-top: 1px solid var(--border-color); */ /* Removed this border */
+    /* Reduced padding for the bottom section. */
+    /* border-top: 1px solid var(--border-color); */
+    /* Removed top border for a cleaner look. */
 }
 
 .siderBottomSection .ant-menu-item {
@@ -123,10 +134,13 @@
 
 .siderBottomSection .ant-menu-item-selected::before {
     left: 0px;
-    /* Adjust for bottom menu */
+    /* Adjust indicator for bottom menu items if necessary. */
 }
 
-/* Remove or comment out these styles: */
+/*
+ * The following .logoutButton styles are commented out in the original code.
+ * They are preserved here as commented out.
+ */
 /*
 .logoutButton {
     width: 100%;
@@ -136,11 +150,11 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    /* Default for non-collapsed */
+    /* Default alignment for non-collapsed Sider. */
 /*
 .appSider[class*="ant-layout-sider-collapsed"] .logoutButton {
     justify-content: center;
-    /* Center icon when collapsed */
+    /* Center icon when Sider is collapsed. */
 /*
 .logoutButton:hover {
     background-color: var(--tertiary-bg) !important;
@@ -148,32 +162,40 @@
 }
 */
 
-/* Icon Coordination Styles */
+/* --- Icon Coordination and Sizing --- */
 .siderMainMenu .ant-menu-item .anticon-read,
 .newChatButton .anticon-plus {
-    font-size: 18px; /* Adjust desired size */
-    color: var(--text-secondary); /* Adjust desired default color */
+    font-size: 18px;
+    /* Standardized icon size for main navigation and new chat. */
+    color: var(--text-secondary);
+    /* Default icon color. */
     transition: color 0.3s;
 }
 
-/* Ensure selected menu item icon uses accent color */
+/* Ensure selected menu item icon and text use accent color. */
 .appSider .ant-menu-item-selected .anticon-read,
 .siderChatMenu .ant-menu-item-selected .ant-typography {
-    color: var(--accent-color) !important; /* Use accent color for selected item text/icon */
+    /* Targets Typography component for chat titles */
+    color: var(--accent-color) !important;
 }
 
-/* Optional: Style New Chat button icon hover if needed */
+/* Optional: Style New Chat button icon hover. */
 .newChatButton:hover .anticon-plus {
-   color: var(--accent-color); /* Example hover color */
+    color: var(--accent-color);
+    /* Accent color on hover for New Chat icon. */
 }
 
-
+/* --- Gradient Logo Text --- */
 .gradientLogoText {
     font-weight: 600;
+    /* Standard CSS for gradient text effect. */
     background: linear-gradient(to right, #4285F4, #9B72CB, #D96570, #F2A600);
     -webkit-background-clip: text;
+    /* Vendor prefix for Safari/Chrome. */
     -webkit-text-fill-color: transparent;
+    /* Makes text transparent to show gradient. */
     background-clip: text;
     color: transparent;
+    /* Standard property. */
     display: inline-block;
 }

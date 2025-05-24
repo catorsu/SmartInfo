@@ -1,41 +1,54 @@
-/* @frontend/src/styles/ChatInputBar.module.css */
+/*
+ * @file ChatInputBar.module.css
+ * @description Styles for the ChatInputBar component, including the container,
+ * text area, and action buttons. Uses CSS Modules.
+ */
+
+/* --- Main Chat Input Container --- */
 .chatInputContainer {
     position: relative;
-    /* Add relative positioning for absolute children */
+    /* For absolute positioning of internal button container. */
     display: flex;
     align-items: center;
     padding: 8px 8px 8px 16px;
-    /* Adjust padding */
+    /* Top, Right, Bottom, Left padding. */
     background-color: var(--input-bg);
-    /* e.g., #FFFFFF or --secondary-bg */
+    /* Uses CSS variable for background. */
     border: 1px solid var(--input-border-color);
     border-radius: 28px;
-    /* For a more pill-like shape */
+    /* Pill-like shape for the input bar. */
     width: 100%;
-    /* Or a max-width like 700px */
     max-width: 750px;
-    /* Adjusted max-width to match chat area */
+    /* Max width to align with chat area. */
     margin: 0 auto;
-    /* Center if max-width is used */
+    /* Center the input bar if max-width is applied. */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    /* Subtle shadow for depth. */
 }
 
+/* --- Text Area Styling --- */
 .chatInputTextArea {
     flex-grow: 1;
+    /* Allows textarea to take available space. */
     border: none !important;
+    /* Remove default Ant Design borders. */
     box-shadow: none !important;
+    /* Remove default Ant Design shadows. */
     background-color: transparent !important;
+    /* Inherit background from container. */
     padding-right: 80px;
-    /* Increased padding for buttons */
+    /* Increased padding to make space for buttons on the right. */
     resize: none;
-    /* Prevent manual resizing */
+    /* Prevent manual resizing by the user. */
     color: var(--text-primary) !important;
 }
 
 .chatInputTextArea::placeholder {
     color: var(--input-placeholder-color) !important;
+    /* Style for placeholder text. */
 }
 
+/* Remove focus/hover outlines from textarea as container handles focus appearance. */
 .chatInputTextArea:hover,
 .chatInputTextArea:focus,
 .chatInputTextArea:focus-within {
@@ -44,28 +57,31 @@
     outline: none !important;
 }
 
+/* --- Input Buttons Container --- */
 .inputButtonsContainer {
     position: absolute;
+    /* Positioned relative to .chatInputContainer. */
     bottom: 6px;
-    /* Slightly adjusted for better vertical alignment */
+    /* Vertical alignment from bottom. */
     right: 8px;
-    /* Adjust horizontal position as needed */
+    /* Horizontal alignment from right. */
     display: flex;
     align-items: center;
     gap: 8px;
-    /* Space between buttons */
+    /* Space between buttons (e.g., attach and send). */
     z-index: 1;
-    /* Ensure buttons are on top */
+    /* Ensure buttons are on top of the textarea. */
 }
 
+/* --- Send Button Specifics --- */
 .sendButton {
-    /* Add any specific styles for the send button if needed,
-     but Ant Design primary button with circle shape is mostly sufficient */
+    /* Ant Design primary button with circle shape is mostly sufficient.
+     * Specific overrides can be placed here if needed. */
     background-color: var(--accent-color) !important;
     border-color: var(--accent-color) !important;
 }
 
 .sendButton .anticon {
     color: var(--primary-bg);
-    /* White icon on accent button */
+    /* Icon color for the send button (e.g., white on accent background). */
 }

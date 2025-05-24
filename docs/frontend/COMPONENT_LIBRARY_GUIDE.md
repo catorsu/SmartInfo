@@ -31,7 +31,7 @@ This section highlights key custom reusable components found in `frontend/src/co
 Located in `frontend/src/components/layout/`.
 
 *   **`MainLayout.tsx`**
-    *   **Purpose:** Provides the primary authenticated application layout, including the sidebar for navigation (News Feed, Chat History), the main content area, and global UI elements like the settings modal trigger and action FloatButtons.
+    *   **Purpose:** Provides the primary authenticated application layout, including the sidebar for navigation (News Feed, Chat History), the main content area, and global UI elements like the settings modal trigger and action FloatButtons. The main content area allows the browser's native scrollbar to handle page overflow, ensuring that elements within pages (such as sticky filter bars) behave as expected relative to the viewport.
     *   **Key Features:**
         *   Integrates with `AuthContext` to manage user authentication state and display user information.
         *   Integrates with `PageActionContext` to allow child pages/components to trigger modals/drawers managed by the layout (e.g., Fetch News Modal, Task Progress Drawer).

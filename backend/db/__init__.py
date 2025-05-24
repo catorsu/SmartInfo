@@ -31,10 +31,10 @@ from db.repositories.chat_repository import ChatRepository
 from db.repositories.message_repository import MessageRepository
 from db.repositories.user_repository import UserRepository
 from db.repositories.fetch_history_repository import FetchHistoryRepository
-from db.repositories.base_repository import BaseRepository  # Added BaseRepository
+from db.repositories.base_repository import BaseRepository
 
 __all__ = [
-    "BaseRepository",  # Added BaseRepository
+    "BaseRepository",
     "NewsRepository",
     "NewsSourceRepository",
     "NewsCategoryRepository",

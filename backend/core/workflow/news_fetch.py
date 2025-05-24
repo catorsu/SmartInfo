@@ -18,7 +18,7 @@ import time
 from typing import Callable, Dict, List, Optional, Tuple, Union, Awaitable
 from urllib.parse import urljoin, urlparse
 
-from core.llm.client import AsyncLLMClient  # Changed from LLMClientPool
+from core.llm.client import AsyncLLMClient
 from utils.html_utils import (
     clean_and_format_html,
     extract_metadata_combined_newspaper4k_trafilatura,
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 async def fetch_news(
     url: str,
-    llm_client: AsyncLLMClient,  # Changed from llm_pool
+    llm_client: AsyncLLMClient,
     exclude_links: Optional[List[str]] = None,
     progress_callback: Optional[
         Callable[[Union[int, str], float, str, int], Awaitable[None]]
@@ -153,7 +153,6 @@ async def fetch_news(
     )
 
     markdown_link_chunks = [cleaned_markdown_links_str]
-    # Use llm_client.max_input_tokens
     if token_size > llm_client.max_input_tokens:
         num_chunks = (token_size // llm_client.max_input_tokens) + 1
         logger.debug(
@@ -211,7 +210,7 @@ async def fetch_news(
             )
 
         chunk_extracted_metadata = await _extract_and_crawl_links(
-            url, link_chunk_content, llm_client  # Pass llm_client
+            url, link_chunk_content, llm_client
         )
         if chunk_extracted_metadata:
             original_content_metadata_dict.update(chunk_extracted_metadata)
@@ -252,7 +251,7 @@ async def fetch_news(
     summary_result = await summarize_content(
         url=url,
         original_content_metadata_dict=original_content_metadata_dict,
-        llm_client=llm_client,  # Pass llm_client
+        llm_client=llm_client,
     )
 
     summarized_articles_count = len(summary_result) if summary_result else 0
@@ -421,7 +420,7 @@ def build_content_analysis_prompt(
 async def _extract_and_crawl_links(
     base_url: str,
     markdown_content: str,
-    llm_client: AsyncLLMClient,  # Changed from llm_pool
+    llm_client: AsyncLLMClient,
 ) -> Dict[str, Dict[str, str]]:
     """
     Extracts article links from Markdown using LLM, then crawls these links.
@@ -429,7 +428,7 @@ async def _extract_and_crawl_links(
     Args:
         base_url (str): Base URL of the original source page.
         markdown_content (str): Markdown string of pre-filtered links.
-        llm_client (AsyncLLMClient): Initialized LLM client. # Changed
+        llm_client (AsyncLLMClient): Initialized LLM client.
 
     Returns:
         Dict[str, Dict[str, str]]: Dictionary of crawled sub-article URLs to metadata.
@@ -454,7 +453,6 @@ async def _extract_and_crawl_links(
         logger.debug(
             f"Requesting LLM to identify final article links from provided Markdown links for: {base_url}"
         )
-        # Use llm_client directly
         links_str = await llm_client.get_completion_content(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT_EXTRACT_ARTICLE_LINKS},
@@ -582,7 +580,7 @@ async def _extract_and_crawl_links(
 async def summarize_content(
     url: str,
     original_content_metadata_dict: Dict[str, Dict[str, str]],
-    llm_client: AsyncLLMClient,  # Changed from llm_pool
+    llm_client: AsyncLLMClient,
 ) -> List[Dict[str, str]]:
     """
     Summarizes a batch of articles using an LLM.
@@ -591,7 +589,7 @@ async def summarize_content(
         url (str): Base URL of the original news source (for logging).
         original_content_metadata_dict (Dict[str, Dict[str, str]]):
             Dictionary of article URLs to metadata.
-        llm_client (AsyncLLMClient): Initialized LLM client. # Changed
+        llm_client (AsyncLLMClient): Initialized LLM client.
 
     Returns:
         List[Dict[str, str]]: List of summarized articles. Each includes:
@@ -623,7 +621,6 @@ async def summarize_content(
     logger.debug(f"Content analysis prompt for {url} has {prompt_tokens} tokens.")
 
     try:
-        # Use llm_client.max_input_tokens and llm_client.max_output_tokens
         if prompt_tokens > llm_client.max_input_tokens:
             logger.warning(
                 f"Batch prompt for {url} exceeds LLM context window ({prompt_tokens} > {llm_client.max_input_tokens}). "
@@ -660,7 +657,6 @@ async def summarize_content(
                     f"Prompt tokens: {get_token_size(chunk_prompt)}"
                 )
 
-                # Use llm_client directly
                 llm_result_chunk = await llm_client.get_completion_content(
                     messages=[
                         {
@@ -669,7 +665,7 @@ async def summarize_content(
                         },
                         {"role": "user", "content": chunk_prompt},
                     ],
-                    max_tokens=llm_client.max_output_tokens,  # Use llm_client attribute
+                    max_tokens=llm_client.max_output_tokens,
                     temperature=0.8,
                 )
                 logger.debug(
@@ -696,7 +692,6 @@ async def summarize_content(
             logger.debug(
                 f"Prompt for {url} is within token limits. Processing as single batch."
             )
-            # Use llm_client directly
             llm_result = await llm_client.get_completion_content(
                 messages=[
                     {
@@ -705,7 +700,7 @@ async def summarize_content(
                     },
                     {"role": "user", "content": analysis_prompt},
                 ],
-                max_tokens=llm_client.max_output_tokens,  # Use llm_client attribute
+                max_tokens=llm_client.max_output_tokens,
                 temperature=0.8,
             )
             logger.debug(f"LLM response length for {url}: {len(llm_result)} bytes.")

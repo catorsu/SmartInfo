@@ -1,66 +1,83 @@
-/* frontend/src/styles/globals.css */
+/*
+ * @file globals.css
+ * @description Global styles and CSS variable definitions for the SmartInfo application.
+ * Includes Ant Design reset, font imports, theme palette, and base HTML element styling.
+ * Also contains global overrides for Ant Design components and utility classes.
+ */
+
+/* Import Ant Design's reset styles for baseline consistency. */
 @import 'antd/dist/reset.css';
+/* Import Inter font family from Google Fonts. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* --- Root CSS Variables (Theme Palette) --- */
 :root {
   /* Light Theme Palette */
   --primary-bg: #F8F9FA;
+  /* Main background color for pages and large containers. */
   --secondary-bg: #f0f4f9;
-  /* 假设这是你的二级背景色 */
+  /* Secondary background, e.g., sidebars, cards. */
   --tertiary-bg: #e4e8ec;
-  /* For hover states, subtle borders, some input backgrounds */
+  /* For hover states, subtle borders, some input backgrounds. */
 
   --text-primary: #212529;
-  /* Dark grey for main text */
+  /* Dark grey for main text content. */
   --text-secondary: #495057;
-  /* Medium grey for secondary text */
+  /* Medium grey for secondary text, subtitles. */
   --text-tertiary: #6C757D;
-  /* Lighter grey for placeholders */
+  /* Lighter grey for placeholders, disabled text. */
 
   --accent-color: #007BFF;
-  /* Primary accent color (e.g., a vibrant blue) */
+  /* Primary accent color (e.g., a vibrant blue for links, buttons). */
   --accent-color-light: #d3e3fd;
-  /* Geändert für NavigationBar Button Selektiert */
+  /* Lighter shade of accent, e.g., for selected navigation items. */
   --accent-color-hover: #0056B3;
-  /* Darker shade for accent hover */
+  /* Darker shade for accent color hover states. */
 
   --border-color: #DEE2E6;
-  /* Default border color */
+  /* Default border color for elements. */
   --border-color-secondary: #F1F3F5;
-  /* Lighter borders for dividers */
+  /* Lighter borders, often for internal dividers. */
 
-  /* Chat Bubbles */
+  /* Chat Bubbles - Base colors (may be overridden by specific styles) */
   --user-message-bg: #f0f4f9;
-  /* Original, will be overridden by Gemini style for the card body */
+  /* Base background for user messages. */
   --user-message-text: var(--text-primary);
-  /* Changed from --accent-color-hover for better general readability */
+  /* Text color for user messages. */
   --ai-message-bg: #F8F9FA;
-  /* Original, will be used by Gemini style for AI card body */
+  /* Base background for AI messages. */
   --ai-message-text: var(--text-primary);
+  /* Text color for AI messages. */
 
-  /* Gemini Style Chat Bubble Colors */
+  /* Gemini Style Chat Bubble Colors (Specific theme for chat messages) */
   --user-message-gemini-bg: #DCE5F9;
-  /* Light grey-blue for user messages */
+  /* Light grey-blue for user messages (Gemini style). */
   --ai-message-gemini-border: #E8EAED;
-  /* Subtle border for AI messages */
+  /* Subtle border for AI messages (Gemini style). */
 
 
-  /* Input specific */
+  /* Input specific variables */
   --input-bg: #FFFFFF;
+  /* Background for input fields. */
   --input-border-color: var(--border-color);
+  /* Border color for input fields. */
   --input-focus-border-color: var(--accent-color);
+  /* Border color for focused input fields. */
   --input-placeholder-color: var(--text-tertiary);
+  /* Color for input placeholder text. */
 
+  /* Base border radius values */
   --border-radius-base: 6px;
   --border-radius-lg: 8px;
 
-  /* 新增的悬停渐变起始颜色 */
+  /* Gradient start color for hover effects (e.g., news item cards) */
   --hover-gradient-start-blueish: #e0e8f5;
-  /* 比 --secondary-bg 略深且偏蓝 */
 }
 
+/* --- Global Resets and Base Styles --- */
 * {
   box-sizing: border-box;
+  /* Ensures padding and border are included in element's total width/height. */
   padding: 0;
   margin: 0;
 }
@@ -69,38 +86,45 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+  /* Prevent horizontal scrollbars. */
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   background-color: var(--primary-bg);
   color: var(--text-primary);
   font-size: 14px;
+  /* Base font size. */
   line-height: 1.5715;
-  /* AntD default */
+  /* Default Ant Design line height for readability. */
 }
 
 #__next {
+  /* Next.js root element */
   height: 100%;
 }
 
 a {
   color: var(--accent-color);
   text-decoration: none;
+  /* Remove default underline from links. */
   transition: color 0.2s ease-in-out;
+  /* Smooth color transition on hover. */
 }
 
 a:hover {
   color: var(--accent-color-hover);
   /* text-decoration: underline; */
-  /* Optional: keep underline for accessibility */
+  /* Optional: re-add underline on hover for accessibility. */
 }
+
+/* --- Ant Design Component Overrides --- */
 
 /* More subtle dividers globally */
 .ant-divider {
   border-block-start-color: var(--border-color) !important;
-  /* AntD v5 uses border-block-start */
+  /* AntD v5 uses border-block-start. */
 }
 
-/* Focus states for better accessibility and modern feel */
+/* Focus states for better accessibility and modern feel on input-like components. */
 .ant-input:focus,
 .ant-input-focused,
 .ant-input-number:focus,
@@ -108,110 +132,113 @@ a:hover {
 .ant-select-focused .ant-select-selector,
 .ant-picker-focused {
   border-color: var(--accent-color) !important;
+  /* Uses a color mix for a subtle glow effect, common in modern UI. */
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color) 20%, transparent) !important;
 }
 
-/* Chat Message Card Styles */
+/* --- Chat Message Card Styles (Gemini-inspired) --- */
 .user-message-card .ant-card-body {
   background-color: var(--user-message-gemini-bg) !important;
+  /* Rounded corners: Top-Left, Top-Right, Bottom-Right, Bottom-Left for right-aligned user messages. */
   border-radius: 20px 20px 5px 20px !important;
-  /* TL, TR, BR, BL for right-aligned */
   padding: 10px 15px !important;
-  /* border: none !important; */
-  /* Ensure no conflicting border */
   color: var(--user-message-text) !important;
-  /* Ensure text readability */
   max-width: 100%;
-  /* Ensures card body does not exceed parent Card's width */
-  /* The Ant Design Paragraph component within this body will handle text wrapping (white-space, overflow-wrap) */
+  /* Ensures card body does not exceed parent Card's width. */
+  /* Text wrapping is handled by the Paragraph component within. */
 }
 
 .assistant-message-card .ant-card-body {
   background-color: var(--ai-message-bg) !important;
-  /* Uses existing page background */
+  /* Uses existing page background for AI messages. */
   /* border: 1px solid var(--ai-message-gemini-border) !important; */
+  /* Optional border for AI messages. */
   /* border-radius: 5px 20px 20px 20px !important; */
-  /* TL, TR, BR, BL for left-aligned */
+  /* Rounded corners for left-aligned AI messages. */
   padding: 10px 15px !important;
   color: var(--ai-message-text) !important;
   max-width: 100%;
-  /* Ensures card body does not exceed parent Card's width */
-  /* The Ant Design Paragraph component within this body will handle text wrapping (white-space, overflow-wrap) */
 }
 
-/* Ensure card itself has no extra padding if body is styled */
+/* Ensure card itself has no extra padding if body is styled, and remove default card borders/shadows. */
 .user-message-card,
 .assistant-message-card {
   padding: 0 !important;
   border: none !important;
-  /* Border is on the body or not at all */
   box-shadow: none !important;
-
   width: fit-content;
+  /* Card width adjusts to content. */
 }
 
-/* Styles for the AI message copy button wrapper and its button */
+/* --- AI Message Copy Button Styling --- */
+/* Styles for the wrapper of the copy button, shown on hover over the AI message container. */
 .assistant-message-container .assistant-copy-button {
   opacity: 0;
+  /* Hidden by default. */
   visibility: hidden;
   transform: translateY(4px);
-  /* Slight upward movement on appear */
+  /* Slight upward movement on appear. */
   transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
 }
 
-/* Hover effect for the PARENT .assistant-message-container to show the copy button */
+/* Hover effect for the PARENT .assistant-message-container to show the copy button. */
 .assistant-message-container:hover .assistant-copy-button {
   opacity: 1;
+  /* Show on hover. */
   visibility: visible;
   transform: translateY(0);
+  /* Return to original position. */
 }
 
 .assistant-copy-button .ant-btn {
-  /* Targeting the Ant Design button inside our wrapper */
+  /* Targeting the Ant Design button inside our wrapper. */
   color: var(--text-tertiary) !important;
-  /* Lighter icon color */
+  /* Lighter icon color for subtlety. */
   padding: 2px 4px !important;
-  /* Adjust padding for a tight fit */
+  /* Adjust padding for a tight fit. */
   background-color: transparent !important;
-  /* Ensure no default button background */
+  /* No default button background. */
   border: none !important;
-  /* Ensure no default button border */
+  /* No default button border. */
 }
 
 .assistant-copy-button .ant-btn:hover {
   color: var(--text-secondary) !important;
-  /* Darken icon slightly on hover */
+  /* Darken icon slightly on hover. */
   background-color: color-mix(in srgb, var(--tertiary-bg) 50%, transparent) !important;
-  /* Subtle hover background for the button itself */
+  /* Subtle hover background. */
 }
 
-/* News Item Card Base and Hover Effect */
+/* --- News Item Card Base and Hover Effect --- */
 .news-item-card-hoverable {
   background-color: var(--secondary-bg);
-  /* Default background */
+  /* Default background. */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  /* A very subtle default shadow */
+  /* Very subtle default shadow. */
   position: relative;
-  /* For z-index on hover */
+  /* For z-index on hover to ensure it's above other items. */
   transition: transform 0.2s ease-in-out,
     background-image 0.3s ease-in-out,
     background-color 0.3s ease-in-out,
-    /* For smooth transition from solid to gradient */
+    /* Smooth transition from solid to gradient. */
     box-shadow 0.2s ease-in-out;
   background-image: none;
-  /* Ensure no background-image is set by default */
+  /* Ensure no background-image is set by default. */
 }
 
 .news-item-card-hoverable:hover {
   transform: scale(1.02);
+  /* Slight scale up on hover. */
+  /* Gradient background on hover for a modern effect. */
   background-image: linear-gradient(to bottom, var(--hover-gradient-start-blueish), var(--secondary-bg));
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-  /* Optional: Slightly more pronounced shadow */
+  /* Slightly more pronounced shadow on hover. */
   z-index: 10;
-  /* Ensure it's above other items when scaled */
+  /* Ensure it's above other items when scaled. */
 }
 
-/* Custom FAB sizes - Smaller */
+/* --- Custom Floating Action Button (FAB) Sizes - Smaller --- */
+/* Styles for the filter toggle FAB. */
 .filter-toggle-fab.ant-float-btn {
   width: 36px !important;
   height: 36px !important;
@@ -221,14 +248,16 @@ a:hover {
   width: 36px !important;
   height: 36px !important;
   line-height: 36px !important;
+  /* Vertically center icon. */
 }
 
 .filter-toggle-fab.ant-float-btn .ant-float-btn-body .anticon {
   font-size: 16px !important;
   vertical-align: middle;
+  /* Ensure icon is properly aligned. */
 }
 
-/* For buttons within the action group */
+/* Styles for buttons within the FAB action group. */
 .action-fab-group .ant-float-btn {
   width: 36px !important;
   height: 36px !important;
@@ -245,9 +274,10 @@ a:hover {
   vertical-align: middle;
 }
 
-/* For the main trigger icon of the FloatButton.Group itself */
+/* Styles for the main trigger icon of the FloatButton.Group itself. */
 .action-fab-group>.ant-float-btn.ant-float-btn-circle:first-child {
   width: 40px !important;
+  /* Slightly larger for the main trigger. */
   height: 40px !important;
 }
 
@@ -259,5 +289,6 @@ a:hover {
 
 .action-fab-group>.ant-float-btn.ant-float-btn-circle:first-child .ant-float-btn-body .anticon {
   font-size: 18px !important;
+  /* Slightly larger icon for the main trigger. */
   vertical-align: middle;
 }

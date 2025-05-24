@@ -122,7 +122,7 @@ class LLMClientBase(abc.ABC):
         self.context = context
         self.max_output_tokens = max_output_tokens
         # Ensure max_input_tokens is not negative if context is smaller than max_output_tokens
-        self.max_input_tokens = max(0, context - max_output_tokens)
+        self.max_input_tokens = max(1024, context - max_output_tokens)
         self.timeout = timeout
         self.max_retries = max_retries
         self._client: Optional[Union[OpenAI, AsyncOpenAI]] = None
@@ -333,7 +333,6 @@ class AsyncLLMClient(LLMClientBase):
             - Sets `self._is_closed` to `True`.
             - Logs information about closing the client and any errors during closure.
         """
-        # Type assertion for self._client
         client = cast(Optional[AsyncOpenAI], self._client)
         if client and not self._is_closed:
             logger.info(f"Closing AsyncLLMClient connection to {self.base_url}")
@@ -344,8 +343,8 @@ class AsyncLLMClient(LLMClientBase):
             finally:
                 self._client = None
                 self._is_closed = True
-        elif not self._is_closed:  # Client is None but not marked closed
-            self._is_closed = True  # Mark as closed
+        elif not self._is_closed:
+            self._is_closed = True
 
     async def __aenter__(self) -> "AsyncLLMClient":
         """Initializes the client for use as an asynchronous context manager.
@@ -454,7 +453,7 @@ class AsyncLLMClient(LLMClientBase):
             raise ValueError("No model specified for LLM completion request.")
 
         self._ensure_client()
-        client = cast(AsyncOpenAI, self._client)  # Ensured by _ensure_client
+        client = cast(AsyncOpenAI, self._client)
 
         request_params = {
             "model": model_to_use,
@@ -471,7 +470,7 @@ class AsyncLLMClient(LLMClientBase):
         logger.debug(f"Requesting async completion from model '{model_to_use}'...")
 
         try:
-            completion = await client.chat.completions.create(**request_params)  # type: ignore
+            completion = await client.chat.completions.create(**request_params)
 
             if completion.usage:
                 logger.info(
@@ -581,7 +580,7 @@ class AsyncLLMClient(LLMClientBase):
             raise ValueError("No model specified for LLM streaming request.")
 
         self._ensure_client()
-        client = cast(AsyncOpenAI, self._client)  # Ensured by _ensure_client
+        client = cast(AsyncOpenAI, self._client)
 
         request_params = {
             "model": model_to_use,
@@ -599,7 +598,7 @@ class AsyncLLMClient(LLMClientBase):
         )
 
         try:
-            stream = await client.chat.completions.create(**request_params)  # type: ignore
+            stream = await client.chat.completions.create(**request_params)
             logger.debug("Async LLM stream initiated.")
 
             total_chunks = 0
@@ -615,12 +614,7 @@ class AsyncLLMClient(LLMClientBase):
                             f"LLM stream finished for model {model_to_use}. "
                             f"Reason: {finish_reason}. Total chunks: {total_chunks}"
                         )
-                        # Log usage if available on the *last* chunk
-                        # Note: OpenAI API typically sends usage stats in a separate, non-streaming
-                        # response or not at all for streams. This part might not log often.
-                        if (
-                            hasattr(chunk, "usage") and chunk.usage
-                        ):  # Check if usage is present
+                        if hasattr(chunk, "usage") and chunk.usage:
                             logger.info(
                                 f"LLM API Usage (final chunk for {model_to_use}): "
                                 f"Prompt={chunk.usage.prompt_tokens}, "
@@ -695,7 +689,7 @@ class SyncLLMClient(LLMClientBase):
             - Instantiates an `OpenAI` object.
             - Logs a debug message indicating client creation.
         """
-        if self._is_closed:  # Defensive
+        if self._is_closed:
             raise RuntimeError(
                 "Cannot create client: SyncLLMClient instance has been closed."
             )
@@ -705,7 +699,7 @@ class SyncLLMClient(LLMClientBase):
             base_url=self.base_url,
             api_key=self.api_key,
             timeout=self.timeout,
-            max_retries=0,  # Disable automatic retries for sync client here
+            max_retries=0,
         )
 
     def close(self) -> None:
@@ -835,7 +829,7 @@ class SyncLLMClient(LLMClientBase):
             raise ValueError("No model specified for LLM completion request.")
 
         self._ensure_client()
-        client = cast(OpenAI, self._client)  # Ensured by _ensure_client
+        client = cast(OpenAI, self._client)
 
         request_params = {
             "model": model_to_use,
@@ -851,7 +845,7 @@ class SyncLLMClient(LLMClientBase):
         logger.debug(f"Requesting sync completion from model '{model_to_use}'...")
 
         try:
-            completion = client.chat.completions.create(**request_params)  # type: ignore
+            completion = client.chat.completions.create(**request_params)
 
             if completion.usage:
                 logger.info(
@@ -951,7 +945,7 @@ class SyncLLMClient(LLMClientBase):
             raise ValueError("No model specified for LLM streaming request.")
 
         self._ensure_client()
-        client = cast(OpenAI, self._client)  # Ensured by _ensure_client
+        client = cast(OpenAI, self._client)
 
         request_params = {
             "model": model_to_use,
@@ -969,7 +963,7 @@ class SyncLLMClient(LLMClientBase):
         )
 
         try:
-            stream = client.chat.completions.create(**request_params)  # type: ignore
+            stream = client.chat.completions.create(**request_params)
             logger.debug("Sync LLM stream initiated.")
 
             total_chunks = 0

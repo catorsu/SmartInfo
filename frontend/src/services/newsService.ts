@@ -16,7 +16,8 @@ import {
   FetchUrlRequest,
   AnalyzeRequest,
   AnalyzeContentRequest,
-  FetchHistoryItem
+  FetchHistoryItem,
+  PaginatedNewsResponse // ADDED PaginatedNewsResponse import
 } from '../utils/types';
 
 const BASE_PATH = '/api/news';
@@ -81,8 +82,8 @@ export const deleteSource = async (id: number): Promise<void> => {
 };
 
 
-export const getNewsItems = async (params: NewsFilterParams): Promise<NewsItem[]> => {
-  const response = await api.get(`${BASE_PATH}/items`, { params });
+export const getNewsItems = async (params: NewsFilterParams): Promise<PaginatedNewsResponse> => { // MODIFIED return type
+  const response = await api.get<PaginatedNewsResponse>(`${BASE_PATH}/items`, { params }); // MODIFIED to expect PaginatedNewsResponse
   return response.data;
 };
 

@@ -1,103 +1,57 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext';
+/**
+ * @file index.tsx (NewsPage)
+ * @description Displays the main news feed page. Allows users to browse, filter,
+ * and search for news items. It interacts with MainLayout via PageActionContext
+ * to request global modals/drawers (e.g., for fetching news).
+ * This is the default page shown after login, typically at the root path '/'.
+ *
+ * @file_purpose Entry point for the primary news aggregation and viewing interface.
+ */
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import {
-  Typography,
-  Select,
-  Input,
-  Spin,
-  Empty,
-  List,
-  Card,
-  Row,
-  Col,
-  Pagination,
-  Space,
-  Button,
-  Alert,
-  Tag,
-  Divider,
-  Modal,
-  Form,
-  Checkbox,
-  Drawer,
-  Progress,
-  message,
-  Tooltip,
-  DatePicker, // Keep if you plan to use it for history date selection
-  Badge,
-  FloatButton
+  Typography, Select, Input, Spin, Empty, List, Card, Row, Col, Pagination, Space, Button, Alert, Tooltip, FloatButton, message
 } from 'antd';
 import {
-  SearchOutlined,
-  CalendarOutlined,
-  TagOutlined,
-  GlobalOutlined,
-  ExperimentOutlined,
-  DownloadOutlined,
-  BarsOutlined,
-  LinkOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  StopOutlined,
-  SyncOutlined,
-  LoadingOutlined,
-  HistoryOutlined,
-  DeleteOutlined,
-  ClockCircleOutlined,
-  FilterOutlined,
-  AppstoreOutlined
+  SearchOutlined, CalendarOutlined, TagOutlined, GlobalOutlined, ExperimentOutlined, LinkOutlined, FilterOutlined
 } from '@ant-design/icons';
-import { NewsItem, NewsCategory, NewsSource, NewsFilterParams, FetchTaskItem, FetchHistoryItem } from '@/utils/types';
+import { NewsItem, NewsCategory, NewsSource, NewsFilterParams, PaginatedNewsResponse } from '@/utils/types';
 import * as newsService from '@/services/newsService';
-import { handleApiError, extractErrorMessage } from '@/utils/apiErrorHandler';
-import Link from 'next/link';
+import { extractErrorMessage } from '@/utils/apiErrorHandler';
+import Link from 'next/link'; // Used for navigation, not direct linking here.
 import debounce from 'lodash/debounce';
-import type { CheckboxChangeEvent } from 'antd/es/checkbox';
-import AnalysisModal from '@/components/analysis/AnalysisModal';
-import withAuth from '@/components/auth/withAuth';
-import { usePageActions } from '@/context/PageActionContext';
-import dayjs from 'dayjs';
+import withAuth from '@/components/auth/withAuth'; // Protected route
+import dayjs from 'dayjs'; // For date formatting
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 
-// Step codes enum - must match backend codes
-enum TaskStep {
-  Preparing = 1,
-  Crawling = 2,
-  ExtractingLinks = 3,
-  Analyzing = 4,
-  Saving = 5,
-  Complete = 6,
-  Error = 7,
-  Skipped = 8,
-}
-
-// Helper to map step code to display string
-const getStepDisplayString = (stepCode: TaskStep | number): string => {
-  switch (stepCode) {
-    case TaskStep.Preparing: return 'Preparing';
-    case TaskStep.Crawling: return 'Crawling';
-    case TaskStep.ExtractingLinks: return 'Extracting Links';
-    case TaskStep.Analyzing: return 'Analyzing';
-    case TaskStep.Saving: return 'Saving';
-    case TaskStep.Complete: return 'Complete';
-    case TaskStep.Error: return 'Error';
-    case TaskStep.Skipped: return 'Skipped';
-    default: return 'Unknown';
-  }
-};
-
+/**
+ * @page NewsPage
+ * @description Displays the main news feed, allowing users to browse, filter, and
+ * search news items. It fetches news items, categories, and sources for filtering.
+ * Users can paginate through news, view summaries, and navigate to detailed analysis.
+ * A floating action button allows toggling of filter visibility.
+ * This page is protected and requires authentication.
+ *
+ * @returns {JSX.Element} The rendered news page.
+ *
+ * @sideeffect Fetches news items, categories, and sources from the backend.
+ *             Updates URL query parameters based on filter changes (implicitly via router).
+ *
+ * @example
+ * // This component is typically rendered by Next.js routing.
+ * // No direct instantiation example needed.
+ * // It's accessed via the root path '/' after login.
+ */
 const NewsPage: React.FC = () => {
-  const { registerShowFetchModal, registerShowTaskDrawer } = usePageActions();
-  const { token } = useAuth();
   const router = useRouter();
 
+  // State for news data and UI control
   const [news, setNews] = useState<NewsItem[]>([]);
   const [categories, setCategories] = useState<NewsCategory[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // General loading for news items
   const [error, setError] = useState<{ type: string, message: string, status?: number } | null>(null);
   const [filters, setFilters] = useState<NewsFilterParams>({
     page: 1,
@@ -106,107 +60,72 @@ const NewsPage: React.FC = () => {
     source_id: undefined,
     search_term: '',
     fetch_date: undefined,
-    sort_by: undefined,
+    sort_by: undefined, // e.g., 'created_at_desc'
   });
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(0); // Total number of news items for pagination
+  const [isFilterRowVisible, setIsFilterRowVisible] = useState<boolean>(false); // Toggle for filter bar
 
-  const [isFetchModalVisible, setIsFetchModalVisible] = useState<boolean>(false);
-  const [selectedFetchCategory, setSelectedFetchCategory] = useState<number | undefined>(undefined);
-  const [filteredFetchSources, setFilteredFetchSources] = useState<NewsSource[]>([]);
-  const [selectedSourceIds, setSelectedSourceIds] = useState<number[]>([]);
-  const [selectAllSources, setSelectAllSources] = useState<boolean>(false);
-  const [isIndeterminate, setIsIndeterminate] = useState<boolean>(false);
-
-  const [isTaskDrawerVisible, setIsTaskDrawerVisible] = useState<boolean>(false);
-  const [tasksToMonitor, setTasksToMonitor] = useState<FetchTaskItem[]>([]);
-
-  const [analysisModalVisible, setAnalysisModalVisible] = useState<boolean>(false);
-  const [selectedNewsItemId, setSelectedNewsItemId] = useState<number | null>(null);
-
-  const [taskGroupId, setTaskGroupId] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-
-  const [todaysHistory, setTodaysHistory] = useState<FetchHistoryItem[]>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState<boolean>(false);
-  const [historicalData, setHistoricalData] = useState<FetchHistoryItem[] | null>(null);
-  const [viewingDate, setViewingDate] = useState<'today' | 'history'>('today');
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState<dayjs.Dayjs | null>(null);
-  const [isFilterRowVisible, setIsFilterRowVisible] = useState<boolean>(false);
-
-
-  const loadNews = useCallback(async (params: NewsFilterParams) => {
+  // Callback to load news items based on current filters.
+  const loadNews = useCallback(async (currentFilters: NewsFilterParams) => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const newsData = await newsService.getNewsItems(params);
-      setNews(newsData);
-      // Assuming total is fetched with newsData or a separate call
-      // For now, if newsData is an object with 'items' and 'total'
-      if (newsData && typeof newsData === 'object' && 'items' in newsData && 'total' in newsData) {
-        setNews((newsData as any).items);
-        setTotal((newsData as any).total);
-      } else if (Array.isArray(newsData)) { // Fallback if API returns just an array
-        setNews(newsData);
-        setTotal(newsData.length); // Or a default like 100 if pagination is not fully dynamic
-      } else {
-        setNews([]);
-        setTotal(0);
-      }
+      const paginatedResponse: PaginatedNewsResponse = await newsService.getNewsItems(currentFilters);
+      setNews(paginatedResponse.items);
+      setTotal(paginatedResponse.total);
     } catch (err: any) {
       console.error('Failed to load news:', err);
       const errorDetails = extractErrorMessage(err);
       setError(errorDetails);
+      setNews([]); // Clear news on error
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, []); // Empty dependency array as it uses `currentFilters` argument.
 
-  const fetchTodaysHistory = useCallback(async () => {
-    setIsHistoryLoading(true);
-    try {
-      const todayStr = dayjs().format('YYYY-MM-DD');
-      const history = await newsService.getFetchHistory({ date: todayStr });
-      setTodaysHistory(history);
-    } catch (error) {
-      handleApiError(error, "Failed to load today's fetch history");
-      setTodaysHistory([]);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  }, []);
+  // Effect to load initial filter data (categories, sources) on mount.
+  useEffect(() => {
+    const loadFilterData = async () => {
+      // setLoading(true); // Consider separate loading state for filter data if needed
+      try {
+        const [categoriesData, sourcesData] = await Promise.all([
+          newsService.getCategories(),
+          newsService.getSources()
+        ]);
+        setCategories(categoriesData);
+        setSources(sourcesData);
+      } catch (err: any) {
+        console.error('Failed to load filter data:', err);
+        const errorDetails = extractErrorMessage(err);
+        setError(errorDetails); // Show error if filter data fails to load
+      } finally {
+        // setLoading(false);
+      }
+    };
+    loadFilterData();
+  }, []); // Runs once on component mount.
 
-  const fetchHistoricalData = useCallback(async (date: string | null) => {
-    if (!date) {
-      setHistoricalData(null);
-      return;
-    }
-    setIsHistoryLoading(true);
-    setHistoricalData(null);
-    try {
-      const history = await newsService.getFetchHistory({ date });
-      setHistoricalData(history);
-    } catch (error) {
-      handleApiError(error, `Failed to load fetch history for ${date}`);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  }, []);
-
+  // Effect to reload news items whenever filters change.
+  useEffect(() => {
+    loadNews(filters);
+  }, [filters, loadNews]); // `loadNews` is memoized by useCallback.
+  
+  // Debounced search handler to avoid excessive API calls on input change.
   const debouncedSearch = useCallback(
     debounce((value: string) => {
-      setFilters(prev => ({...prev, search_term: value, page: 1}));
-    }, 500),
-    []
+      setFilters(prev => ({ ...prev, search_term: value, page: 1 })); // Reset to page 1 on new search
+    }, 500), // 500ms delay
+    [] // Empty dependency array for debounce
   );
 
+  // Generic handler for filter changes.
   const handleFilterChange = (key: keyof NewsFilterParams, value: any) => {
     setFilters(prev => {
-      const updated = {...prev, [key]: value};
-      if (key !== 'page') {
-        updated.page = 1;
-      }
-      // Clear fetch_date and sort_by if other filters change, unless it's source_id or category_id
-      if (key !== 'source_id' && key !== 'category_id' && key !== 'page' && key !== 'page_size' && key !== 'search_term') {
+      const updated = { ...prev, [key]: value };
+      if (key !== 'page') updated.page = 1; // Reset to page 1 if filter changes (except pagination itself)
+      // If a primary filter (category, source, search) changes, clear secondary sort/date filters.
+      if (key === 'category_id' || key === 'source_id' || key === 'search_term') {
          updated.fetch_date = undefined;
          updated.sort_by = undefined;
       }
@@ -214,437 +133,59 @@ const NewsPage: React.FC = () => {
     });
   };
 
+  // Special handler for category change to also update available sources.
   const handleCategoryChange = async (value: number | undefined) => {
+    handleFilterChange('category_id', value);
+    // setLoading(true); // Potentially show loading for sources
     try {
-      handleFilterChange('category_id', value);
-      if (value !== undefined) {
-        const sourcesData = await newsService.getSourcesByCategory(value);
-        setSources(sourcesData);
-      } else {
-        const sourcesData = await newsService.getSources();
-        setSources(sourcesData);
-      }
-      handleFilterChange('source_id', undefined);
+      // Fetch sources specific to the selected category, or all sources if category is cleared.
+      const sourcesData = value !== undefined ? await newsService.getSourcesByCategory(value) : await newsService.getSources();
+      setSources(sourcesData);
     } catch (error) {
-      handleApiError(error, 'Cannot update source list for category');
+      const errorDetails = extractErrorMessage(error);
+      setError(errorDetails); // Set error if source list update fails
+      message.error(errorDetails.message || 'Cannot update source list for selected category.');
+    } finally {
+      // setLoading(false);
     }
+    handleFilterChange('source_id', undefined); // Reset source filter when category changes
   };
-
-  const connectWebSocket = useCallback((currentTaskGroupId: string) => {
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
-    if (!token) {
-      console.error('No authentication token available. Cannot establish WebSocket connection.');
-      message.error('无法建立WebSocket连接：未登录或会话已过期');
-      return;
-    }
-
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const apiUrlBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/^http/, 'ws').replace(/\/$/, '');
-    const wsUrl = `${apiUrlBase}/api/tasks/ws/tasks/group/${currentTaskGroupId}?token=${encodeURIComponent(token)}`;
-    console.log('Connecting to WebSocket with auth token:', wsUrl);
-
-    try {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-        };
-
-        ws.onmessage = (event) => {
-          try {
-              const taskUpdate = JSON.parse(event.data);
-
-              if (taskUpdate.event === "batch_task_failed") {
-                  if (taskUpdate.affected_source_ids && Array.isArray(taskUpdate.affected_source_ids)) {
-                      setTasksToMonitor(prevTasks => prevTasks.map(task => {
-                          if (taskUpdate.affected_source_ids.includes(task.sourceId) && (task.progress ?? 0) < 100) {
-                              return { ...task, status: 'Error', progress: 100, message: 'Batch failed; this source did not complete.' };
-                          }
-                          return task;
-                      }));
-                  }
-                  return;
-              }
-
-              if (taskUpdate.event === "overall_batch_completed") {
-                  console.log(`Overall batch group ${currentTaskGroupId} has finished with status: ${taskUpdate.status}`);
-                  loadNews(filters);
-                  fetchTodaysHistory(); // Refresh today's history after completion
-                  setTimeout(() => {
-                      if (wsRef.current) {
-                          console.log('Closing WebSocket after overall completion event.');
-                          wsRef.current.close();
-                          wsRef.current = null;
-                      }
-                      setTaskGroupId(null);
-                  }, 1000);
-                  return;
-              }
-
-              if (taskUpdate.event === "source_progress" && taskUpdate.source_id !== undefined) {
-                  setTasksToMonitor(prevTasks => {
-                      const taskIndex = prevTasks.findIndex(t => t.sourceId === taskUpdate.source_id);
-                      if (taskIndex === -1) {
-                          console.warn(`Received update for source ID ${taskUpdate.source_id}, but task not found in monitor list.`);
-                          return prevTasks;
-                      }
-                      const updatedTasks = [...prevTasks];
-                      const taskToUpdate = { ...updatedTasks[taskIndex] };
-                      taskToUpdate.status = getStepDisplayString(taskUpdate.step);
-                      taskToUpdate.progress = taskUpdate.progress ?? taskToUpdate.progress;
-                      if (taskUpdate.step === TaskStep.Error) {
-                          taskToUpdate.error = true;
-                      }
-                      if (taskUpdate.items_saved !== undefined) {
-                          taskToUpdate.items_saved = taskUpdate.items_saved;
-                          taskToUpdate.items_saved_this_run = taskUpdate.items_saved;
-                      }
-                      if (taskUpdate.step === TaskStep.Error || taskUpdate.step === TaskStep.Skipped) {
-                          taskToUpdate.progress = 100;
-                      } else if (taskUpdate.step === TaskStep.Complete) {
-                          taskToUpdate.progress = 100;
-                      }
-                      updatedTasks[taskIndex] = taskToUpdate;
-                      return updatedTasks;
-                  });
-                  return;
-              }
-              console.log('Received unhandled WebSocket message:', taskUpdate);
-          } catch (e) {
-              console.error('Failed to parse or process WebSocket message:', e);
-          }
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          message.error('WebSocket connection error.');
-          wsRef.current = null;
-          setTaskGroupId(null);
-        };
-
-        ws.onclose = (event) => {
-          console.log(`WebSocket closed for task group ID: ${currentTaskGroupId}. Code: ${event.code}, Reason: ${event.reason}`);
-          if (wsRef.current === ws) {
-             wsRef.current = null;
-          }
-          // Do not reset taskGroupId here if closure was due to overall_batch_completed
-          // as it's already reset in that handler.
-        };
-    } catch (err) {
-        console.error("Failed to create WebSocket:", err);
-        message.error("Failed to initialize WebSocket connection.");
-    }
-  }, [token, loadNews, filters, fetchTodaysHistory]);
-
-  useEffect(() => {
-    if (taskGroupId) {
-      connectWebSocket(taskGroupId);
-    }
-    return () => {
-      if (wsRef.current) {
-        console.log('Closing WebSocket connection on cleanup (taskGroupId change or unmount).');
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [taskGroupId, connectWebSocket]);
-
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const [categoriesData, sourcesData] = await Promise.all([
-          newsService.getCategories(),
-          newsService.getSources()
-        ]);
-        setCategories(categoriesData);
-        setSources(sourcesData);
-        setFilteredFetchSources(sourcesData);
-        fetchTodaysHistory();
-      } catch (err: any) {
-        console.error('Failed to load initial data:', err);
-        const errorDetails = extractErrorMessage(err);
-        setError(errorDetails);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadInitialData();
-  }, [fetchTodaysHistory]);
-
-  useEffect(() => {
-    loadNews(filters);
-  }, [filters, loadNews]);
-
-  const showFetchModal = useCallback(() => {
-    setSelectedFetchCategory(undefined);
-    setFilteredFetchSources(sources); // Ensure 'sources' is available in dependencies if used
-    setSelectedSourceIds([]);
-    setSelectAllSources(false);
-    setIsIndeterminate(false);
-    setIsFetchModalVisible(true);
-  }, [sources, setFilteredFetchSources, setSelectedFetchCategory, setSelectedSourceIds, setSelectAllSources, setIsIndeterminate, setIsFetchModalVisible]);
-
-  const showTaskDrawer = useCallback(() => {
-    setIsTaskDrawerVisible(true);
-  }, [setIsTaskDrawerVisible]); // Add fetchTodaysHistory, setViewingDate if they are called here
-
-  useEffect(() => {
-    registerShowFetchModal(showFetchModal);
-    registerShowTaskDrawer(showTaskDrawer);
-    return () => {
-      registerShowFetchModal(null); // Unregister on unmount
-      registerShowTaskDrawer(null); // Unregister on unmount
-    };
-  }, [registerShowFetchModal, showFetchModal, registerShowTaskDrawer, showTaskDrawer]);
-
+  
+  // Formats date strings for display.
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Unknown date';
-    return dayjs(dateString).format('YYYY-MM-DD');
+    return dayjs(dateString).format('YYYY-MM-DD'); // Example format
   };
-
-
-
-  const handleFetchCategoryChange = (value: number | undefined) => {
-    setSelectedFetchCategory(value);
-    const newFilteredSources = value === undefined ? sources : sources.filter(s => s.category_id === value);
-    setFilteredFetchSources(newFilteredSources);
-    setSelectedSourceIds([]);
-    setSelectAllSources(false);
-    setIsIndeterminate(false);
-  };
-
-  const handleSourceSelectionChange = (checkedValues: any[]) => {
-    const numberValues = checkedValues as number[];
-    setSelectedSourceIds(numberValues);
-    const allVisibleSourceIds = filteredFetchSources.map(s => s.id);
-    const allSelected = allVisibleSourceIds.length > 0 && numberValues.length === allVisibleSourceIds.length;
-    const indeterminate = numberValues.length > 0 && numberValues.length < allVisibleSourceIds.length;
-    setSelectAllSources(allSelected);
-    setIsIndeterminate(indeterminate);
-  };
-
-  const handleSelectAllChange = (e: CheckboxChangeEvent) => {
-    const isChecked = e.target.checked;
-    const allVisibleSourceIds = filteredFetchSources.map(s => s.id);
-    setSelectedSourceIds(isChecked ? allVisibleSourceIds : []);
-    setSelectAllSources(isChecked);
-    setIsIndeterminate(false);
-  };
-
-  const handleFetchConfirm = async () => {
-    if (selectedSourceIds.length === 0) {
-      message.warning('Please select at least one news source.');
-      return;
-    }
-
-    const selectedSourcesDetails = sources.filter(s => selectedSourceIds.includes(s.id));
-    const newTasks: FetchTaskItem[] = selectedSourcesDetails.map(source => ({
-      sourceId: source.id,
-      sourceName: source.name,
-      status: 'Pending',
-      progress: 0,
-    }));
-
-    // Clear only non-pending/non-running tasks from monitor before adding new ones
-    setTasksToMonitor(prevTasks => [
-        ...prevTasks.filter(t => t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped'),
-        ...newTasks
-    ]);
-
-    setViewingDate('today');
-    setHistoricalData(null);
-    fetchTodaysHistory();
-
-    setIsFetchModalVisible(false);
-    setIsTaskDrawerVisible(true);
-
-    try {
-      const response = await newsService.fetchNewsFromSourcesBatchGroup(selectedSourceIds);
-      const newGroupId = response.task_group_id;
-      setTaskGroupId(newGroupId);
-    } catch (error) {
-      handleApiError(error, 'Failed to start news fetch tasks');
-      setTasksToMonitor(prevTasks => prevTasks.filter(task => !selectedSourceIds.includes(task.sourceId)));
-    } finally {
-      setSelectedSourceIds([]);
-      setSelectedFetchCategory(undefined);
-      setFilteredFetchSources(sources);
-      setSelectAllSources(false);
-      setIsIndeterminate(false);
-    }
-  };
-
-  const openAnalysisModal = (newsItemId: number) => {
-    setSelectedNewsItemId(newsItemId);
-    setAnalysisModalVisible(true);
-  };
-
-  const closeAnalysisModal = () => {
-    setAnalysisModalVisible(false);
-    setSelectedNewsItemId(null);
-  };
-
-  const getDisplayedTasks = () => {
-    let displayed: (FetchTaskItem | FetchHistoryItem)[] = [];
-    const processedSourceIds = new Set<number>();
-
-    tasksToMonitor.forEach(task => {
-      displayed.push(task);
-      processedSourceIds.add(task.sourceId);
-    });
-
-    if (viewingDate === 'today') {
-      todaysHistory.forEach(hist => {
-        if (!processedSourceIds.has(hist.source_id)) {
-          displayed.push(hist);
-        }
-      });
-    } else if (historicalData) {
-      displayed = [...historicalData];
-    }
-
-    displayed.sort((a, b) => {
-        const isALive = 'progress' in a && a.status !== 'Complete' && a.status !== 'Error' && a.status !== 'Skipped';
-        const isBLive = 'progress' in b && b.status !== 'Complete' && b.status !== 'Error' && b.status !== 'Skipped';
-
-        if (isALive && !isBLive) return -1;
-        if (!isALive && isBLive) return 1;
-
-        const timeA = 'last_updated_at' in a && a.last_updated_at ? new Date(a.last_updated_at).getTime() : ('sourceId' in a ? Date.now() : 0);
-        const timeB = 'last_updated_at' in b && b.last_updated_at ? new Date(b.last_updated_at).getTime() : ('sourceId' in b ? Date.now() : 0);
-
-        return timeB - timeA;
-    });
-
-    return displayed;
-  };
-
-  const displayedTasks = getDisplayedTasks();
-
-  const getSourceId = (item: FetchTaskItem | FetchHistoryItem): number => {
-    return 'sourceId' in item ? item.sourceId : item.source_id;
-  };
-
-  const getSourceName = (item: FetchTaskItem | FetchHistoryItem): string => {
-    return 'sourceName' in item ? item.sourceName : item.source_name;
-  };
-
-  const getStatus = (item: FetchTaskItem | FetchHistoryItem): string => {
-    if ('status' in item) return item.status;
-    return 'Complete'; // FetchHistoryItem is always complete
-  };
-
-  const getProgress = (item: FetchTaskItem | FetchHistoryItem): number => {
-    if ('progress' in item) return item.progress || 0;
-    return 100; // FetchHistoryItem is always 100%
-  };
-
-  const getItemsSavedThisRun = (item: FetchTaskItem | FetchHistoryItem): number | undefined => {
-    if ('items_saved_this_run' in item) return item.items_saved_this_run; // From live task
-    if ('items_saved_today' in item) return item.items_saved_today; // From history item
-    return undefined;
-  };
-
-  const handleHistoryDateChange = (date: dayjs.Dayjs | null, dateString: string | string[]) => {
-    setSelectedHistoryDate(date);
-    if (dateString && typeof dateString === 'string') {
-      fetchHistoricalData(dateString);
-    } else if (Array.isArray(dateString) && dateString.length > 0) {
-      fetchHistoricalData(dateString[0]);
-    } else {
-      setHistoricalData(null); // Clear if date is cleared
-    }
-  };
-
-  // Handler for clicking the "Saved Items" badge
-  const handleTaskBadgeClick = (sourceId: number, fetchDate: string) => {
-    setFilters(prevFilters => ({
-      ...prevFilters,
-      source_id: sourceId,
-      fetch_date: fetchDate,
-      category_id: undefined,
-      search_term: '',
-      analyzed: undefined,
-      page: 1,
-      sort_by: 'created_at_desc'
-    }));
-    setIsTaskDrawerVisible(false);
-
-  };
-
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Floating Action Button to toggle filter visibility */}
       <FloatButton
         icon={<FilterOutlined />}
         tooltip="Toggle Filters"
         onClick={() => setIsFilterRowVisible(prev => !prev)}
-        className="filter-toggle-fab" // Added className
-        style={{ position: 'fixed', top: 24, right: 24, zIndex: 1001 }}
+        className="filter-toggle-fab" // For global styling if needed
+        style={{ position: 'fixed', top: 24, right: 24, zIndex: 1001 }} // Position FAB
       />
 
-      {/* Conditionally rendered Filter Row with controlled width and sticky positioning */}
+      {/* Filter bar, shown/hidden by FAB */}
       {isFilterRowVisible && (
-        <div style={{ position: 'sticky', top: 0, zIndex: 1000, width: '68%', marginLeft: 'auto', marginRight: 'auto' }}>
-          <Row 
-            justify="center" 
-            style={{
-              backgroundColor: 'var(--primary-bg, #fff)', 
-              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-              // No padding here, will be on the inner Col or Row
-            }}
-          >
-            <Col xs={24} sm={24} md={24} lg={23} xl={22}>
-              <Row 
-                gutter={[16, 4]} // Keep reduced gutter for controls
-                style={{
-                  padding: '8px 0px', // Vertical padding, horizontal comes from Col
-                }}
-                align="middle"
-              >
+        <div style={{ position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'var(--primary-bg, #fff)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+          <Row justify="center">
+            <Col xs={24} sm={24} md={24} lg={23} xl={22}> {/* Responsive column for content width */}
+              <Row gutter={[16, 4]} style={{ padding: '8px 0px' }} align="middle">
                 <Col xs={24} sm={12} md={6} lg={6} xl={6}>
-                  <Select
-                    placeholder="Select category"
-                    style={{ width: '100%' }}
-                    allowClear
-                    size="small"
-                    onChange={(value) => handleCategoryChange(value)}
-                    loading={loading && categories.length === 0}
-                    value={filters.category_id}
-                  >
-                    {categories.map(category => (
-                      <Option key={category.id} value={category.id}>{category.name}</Option>
-                    ))}
+                  <Select placeholder="Select category" style={{ width: '100%' }} allowClear size="small" onChange={handleCategoryChange} loading={loading && categories.length === 0} value={filters.category_id}>
+                    {categories.map(category => <Option key={category.id} value={category.id}>{category.name}</Option>)}
                   </Select>
                 </Col>
                 <Col xs={24} sm={12} md={6} lg={6} xl={6}>
-                  <Select
-                    placeholder="Select source"
-                    style={{ width: '100%' }}
-                    allowClear
-                    size="small"
-                    onChange={(value) => handleFilterChange('source_id', value)}
-                    loading={loading && sources.length === 0 && !!filters.category_id}
-                    value={filters.source_id}
-                    disabled={!filters.category_id && sources.every(s => s.category_id !== undefined)}
-                  >
-                    {sources.map(source => (
-                      <Option key={source.id} value={source.id}>{source.name}</Option>
-                    ))}
+                  <Select placeholder="Select source" style={{ width: '100%' }} allowClear size="small" onChange={(value) => handleFilterChange('source_id', value)} loading={loading && sources.length === 0 && !!filters.category_id} value={filters.source_id} disabled={!filters.category_id && sources.every(s => s.category_id !== undefined) /* Disable if no category selected and all sources are categorized */}>
+                    {sources.map(source => <Option key={source.id} value={source.id}>{source.name}</Option>)}
                   </Select>
                 </Col>
                 <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                  <Input
-                    placeholder="Search news"
-                    prefix={<SearchOutlined />}
-                    size="small"
-                    onChange={(e) => debouncedSearch(e.target.value)}
-                    allowClear
-                  />
+                  <Input placeholder="Search news titles & summaries" prefix={<SearchOutlined />} size="small" onChange={(e) => debouncedSearch(e.target.value)} allowClear />
                 </Col>
               </Row>
             </Col>
@@ -652,425 +193,60 @@ const NewsPage: React.FC = () => {
         </div>
       )}
 
-
-      {error && (
-        <Alert
-          message={error.message || "An unexpected error occurred."}
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
-      {loading && news.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '50px 0' }}>
-          <Spin size="large" tip="Loading news..." />
-        </div>
-      ) : error ? (
-        error.type === 'notFound' ? (
-          <Empty description={error.message || "Content not found."} />
-        ) : error.type === 'forbidden' ? (
-          <Alert
-            message="Access Denied"
-            description={error.message || "You do not have permission to view this content."}
-            type="error"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        ) : (
-          <Alert
-            message={error.message || "An unexpected error occurred."}
-            type="error"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )
-      ) : !loading && news.length === 0 ? (
-        <Empty description="No news found. Try adjusting filters or fetching new articles." />
-      ) : (
-        <>
-          <Row justify="center">
-            <Col xs={24} sm={24} md={24} lg={23} xl={22}>
-              <List
-                dataSource={news}
-                loading={loading && news.length > 0}
-                renderItem={(item) => (
-                  <List.Item key={item.id} style={{paddingTop: 0, paddingBottom: 0, borderBottom: '1px solid var(--border-color)'}}>
-                    <Card 
-                      className="news-item-card-hoverable" 
-                      style={{ 
-                        // backgroundColor is now handled by CSS class .news-item-card-hoverable
-                        marginBottom: '0', 
-                        width: '100%',
-                        border: 'none', // Remove individual card border if List.Item provides separation
-                        borderRadius: 0, // Remove individual card radius if it's a continuous list
-                        cursor: 'pointer' // Added cursor for clickability
-                      }} 
-                      bodyStyle={{ padding: '20px' }}
-                      onClick={() => router.push(`/analyze/${item.id}`)} // Added onClick to navigate
-                    >
-                      <Row gutter={[16, 16]} align="top">
-                        {/* Group 2: Image (Now on Left) */}
-                        {item.top_image && (
-                          <Col
-                            xs={24} // Image full width on XS (stacks below text)
-                            sm={8}   // Image takes 8 out of 24 parts on small screens
-                            md={7}   // Image takes 7 out of 24 parts on medium screens
-                            lg={6}   // Image takes 6 out of 24 parts on large screens
-                            xl={5}   // Image takes 5 out of 24 parts on extra-large screens
-                          >
-                            <img
-                              src={item.top_image}
-                              alt={item.title}
-                              style={{
-                                width: '100%',
-                                height: 'auto',
-                                aspectRatio: '16/10', // Common aspect ratio for preview images
-                                objectFit: 'cover',
-                                borderRadius: 'var(--border-radius-base)',
-                                border: '1px solid var(--border-color-secondary)'
-                              }}
-                              onError={(e) => (e.currentTarget.style.display = 'none')}
-                            />
-                          </Col>
-                        )}
-
-                        {/* Group 1: Text Content (Now on Right) */}
-                        <Col
-                          xs={24}
-                          sm={item.top_image ? 16 : 24}
-                          md={item.top_image ? 17 : 24}
-                          lg={item.top_image ? 18 : 24}
-                          xl={item.top_image ? 19 : 24}
-                          style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}
-                        >
-                          <Typography.Title 
-                            level={4} 
-                            style={{ marginBottom: '8px', marginTop: 0, fontSize: '18px', fontWeight: 600 }} 
-                            ellipsis={{ rows: 2, expandable: false }}
-                          >
-                            {item.title}
-                          </Typography.Title>
-
-                          <Space size="middle" wrap style={{ marginBottom: '12px', fontSize: '13px', alignItems: 'center' }}>
-                            {item.source_name && (
-                              <Space size={4} align="center">
-                                <GlobalOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
-                                <Text type="secondary">{item.source_name}</Text>
+      {/* Main content area for news list */}
+      <div style={{ flexGrow: 1, paddingTop: isFilterRowVisible ? '8px' : '0px' /* Adjust padding based on filter bar */ }}>
+        {error && <Alert message={error.message || "An unexpected error occurred."} type="error" showIcon style={{ margin: '16px auto', maxWidth: '1200px' }} />}
+        {/* Loading spinner shown when fetching initial news or when news array is empty during load */}
+        {loading && news.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0' }}><Spin size="large" tip="Loading news..." /></div>
+          // Error display if loading failed
+          : error ? <div style={{ textAlign: 'center', padding: '50px 0' }}>{error.type === 'notFound' ? <Empty description={error.message || "Content not found."} /> : error.type === 'forbidden' ? <Alert message="Access Denied" description={error.message || "You do not have permission to view this content."} type="error" showIcon /> : <Alert message={error.message || "An unexpected error occurred."} type="error" showIcon />}</div>
+          // Empty state if no news found and not loading
+          : !loading && news.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0' }}><Empty description="No news found. Try adjusting filters or fetching new articles." /></div>
+          // News list display
+          : (
+            <>
+              <Row justify="center">
+                <Col xs={24} sm={24} md={24} lg={23} xl={22}>
+                  <List
+                    dataSource={news} loading={loading && news.length > 0 /* Show item loading if already displaying some news */}
+                    renderItem={(item) => (
+                      <List.Item key={item.id} style={{paddingTop: 0, paddingBottom: 0, borderBottom: '1px solid var(--border-color)'}}>
+                        <Card className="news-item-card-hoverable" style={{ marginBottom: '0', width: '100%', border: 'none', borderRadius: 0, cursor: 'pointer' }} bodyStyle={{ padding: '20px' }} onClick={() => router.push(`/analyze/${item.id}`)}>
+                          <Row gutter={[16, 16]} align="top">
+                            {/* News item image */}
+                            {item.top_image && <Col xs={24} sm={8} md={7} lg={6} xl={5}><img src={item.top_image} alt={item.title} style={{ width: '100%', height: 'auto', aspectRatio: '16/10', objectFit: 'cover', borderRadius: 'var(--border-radius-base)', border: '1px solid var(--border-color-secondary)' }} onError={(e) => (e.currentTarget.style.display = 'none')} /></Col>}
+                            {/* News item content */}
+                            <Col xs={24} sm={item.top_image ? 16 : 24} md={item.top_image ? 17 : 24} lg={item.top_image ? 18 : 24} xl={item.top_image ? 19 : 24} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                              <Typography.Title level={4} style={{ marginBottom: '8px', marginTop: 0, fontSize: '18px', fontWeight: 600 }} ellipsis={{ rows: 2, expandable: false }}>{item.title}</Typography.Title>
+                              <Space size="middle" wrap style={{ marginBottom: '12px', fontSize: '13px', alignItems: 'center' }}>
+                                {item.source_name && <Space size={4} align="center"><GlobalOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} /><Text type="secondary">{item.source_name}</Text></Space>}
+                                {item.category_name && <Space size={4} align="center"><TagOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} /><Text type="secondary">{item.category_name}</Text></Space>}
+                                {item.date && <Space size={4} align="center"><CalendarOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} /><Text type="secondary">{formatDate(item.date)}</Text></Space>}
+                                {/* Link to original article */}
+                                {item.url && <Button type="text" href={item.url} target="_blank" rel="noopener noreferrer" icon={<LinkOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />} onClick={(e) => { e.stopPropagation(); /* Prevent card click */ }} style={{ padding: '0 4px', color: 'var(--accent-color)' }} />}
+                                {/* Button to initiate analysis */}
+                                <Button type="text" icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />} onClick={(e) => { e.stopPropagation(); router.push(`/analyze/${item.id}?initiate=true`); }} style={{ padding: '0 4px', color: 'var(--accent-color)' }} />
                               </Space>
-                            )}
-                            {item.category_name && (
-                              <Space size={4} align="center">
-                                <TagOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
-                                <Text type="secondary">{item.category_name}</Text>
-                              </Space>
-                            )}
-                            {item.date && (
-                              <Space size={4} align="center">
-                                <CalendarOutlined style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
-                                <Text type="secondary">{formatDate(item.date)}</Text>
-                              </Space>
-                            )}
-                            {item.url && (
-                              
-                                <Button
-                                  type="text"
-                                  href={item.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  icon={<LinkOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
-                                  onClick={(e) => { e.stopPropagation(); }}
-                                  style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
-                                />
-                              
-                            )}
-                            
-                              <Button
-                                type="text"
-                                icon={<ExperimentOutlined style={{ color: 'var(--accent-color)', fontSize: '15px' }} />}
-                                onClick={(e) => { e.stopPropagation(); router.push(`/analyze/${item.id}?initiate=true`); }}
-                                style={{ padding: '0 4px', color: 'var(--accent-color)' }} 
-                              />
-                            
-                          </Space>
-
-                          {item.summary && (
-                            <Typography.Paragraph
-                              ellipsis={{ rows: 3, expandable: false }} // Consistent 3 rows for summary
-                              style={{ marginBottom: '0', color: 'var(--text-primary)', lineHeight: 1.6, flexGrow: 1 }}
-                            >
-                              {item.summary}
-                            </Typography.Paragraph>
-                          )}
-                        </Col>
-                      </Row>
-                    </Card>
-                  </List.Item>
-                )}
-              />
-              <div style={{ textAlign: 'center', marginTop: 24, display: 'flex', justifyContent: 'center' }}>
-                <Pagination
-                  current={filters.page}
-                  pageSize={filters.page_size}
-                  total={total}
-                  onChange={(page) => handleFilterChange('page', page)}
-                  showSizeChanger
-                  onShowSizeChange={(_, size) => {
-                    handleFilterChange('page_size', size);
-                    handleFilterChange('page', 1);
-                  }}
-                  showTotal={(totalItems, range) => `${range[0]}-${range[1]} of ${totalItems} items`}
-                />
-              </div>
-            </Col>
-          </Row>
-        </>
-      )}
-
-      <Modal
-        title="News Fetch Settings"
-        open={isFetchModalVisible}
-        onOk={handleFetchConfirm}
-        onCancel={() => setIsFetchModalVisible(false)}
-        okText="Add to Task List"
-        cancelText="Cancel"
-        width={600}
-      >
-        <Spin spinning={loading && categories.length === 0}>
-          <Form layout="vertical">
-            <Form.Item label="Step 1: Filter News Categories (Optional)">
-              <Select
-                placeholder="Select category to filter sources below"
-                allowClear
-                value={selectedFetchCategory}
-                onChange={handleFetchCategoryChange}
-                style={{ width: '100%' }}
-              >
-                <Option value={undefined}>-- All Categories --</Option>
-                {categories.map(cat => (
-                  <Option key={cat.id} value={cat.id}>{cat.name}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Form.Item label="Step 2: Select News Sources to Fetch">
-              <Checkbox
-                indeterminate={isIndeterminate}
-                onChange={handleSelectAllChange}
-                checked={selectAllSources}
-                disabled={filteredFetchSources.length === 0}
-                style={{ marginBottom: 8, display: 'block', borderBottom: '1px solid #f0f0f0', paddingBottom: '8px' }}
-              >
-                Select All/Deselect All ({filteredFetchSources.length} sources in current list)
-              </Checkbox>
-              <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #f0f0f0', padding: '8px' }}>
-                {filteredFetchSources.length > 0 ? (
-                  <Checkbox.Group
-                    style={{ width: '100%' }}
-                    options={filteredFetchSources.map(s => ({ label: s.name, value: s.id }))}
-                    value={selectedSourceIds}
-                    onChange={handleSourceSelectionChange}
+                              {item.summary && <Typography.Paragraph ellipsis={{ rows: 3, expandable: false }} style={{ marginBottom: '0', color: 'var(--text-primary)', lineHeight: 1.6, flexGrow: 1 }}>{item.summary}</Typography.Paragraph>}
+                            </Col>
+                          </Row>
+                        </Card>
+                      </List.Item>
+                    )}
                   />
-                ) : (
-                  <Text type="secondary">No sources found for this filter or sources are not yet loaded.</Text>
-                )}
-              </div>
-            </Form.Item>
-          </Form>
-        </Spin>
-      </Modal>
-
-      <Drawer
-        title="Task Progress"
-        placement="right"
-        width={350}
-        onClose={() => setIsTaskDrawerVisible(false)}
-        open={isTaskDrawerVisible}
-        mask={false}
-        closable={true}
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <Tooltip title="Clear Completed & Errored Tasks">
-              <Button
-                onClick={() => {
-                  setTasksToMonitor(prev => prev.filter(t =>
-                    t.status !== 'Complete' && t.status !== 'Error' && t.status !== 'Skipped'
-                  ));
-                }}
-                disabled={!tasksToMonitor.some(t =>
-                  t.status === 'Complete' || t.status === 'Error' || t.status === 'Skipped'
-                )}
-                type="text"
-                icon={<DeleteOutlined />}
-              />
-            </Tooltip>
-
-            {viewingDate === 'today' ? (
-              <Tooltip title="View History">
-                <Button
-                  type="text"
-                  icon={<HistoryOutlined />}
-                  onClick={() => {
-                    setViewingDate('history');
-                    setSelectedHistoryDate(null);
-                    setHistoricalData(null);
-                  }}
-                />
-              </Tooltip>
-            ) : (
-              <Tooltip title="View Today's Progress">
-                <Button
-                  type="text"
-                  icon={<ClockCircleOutlined />}
-                  onClick={() => {
-                    setViewingDate('today');
-                    fetchTodaysHistory();
-                    setHistoricalData(null);
-                    setSelectedHistoryDate(null);
-                  }}
-                />
-              </Tooltip>
-            )}
-          </div>
-        }
-      >
-
-
-        {viewingDate === 'history' && (
-          <div style={{ marginBottom: 16 }}>
-            <DatePicker
-              value={selectedHistoryDate}
-              onChange={handleHistoryDateChange}
-              style={{ width: '100%' }}
-              disabledDate={(current) => current && current > dayjs().endOf('day')}
-            />
-          </div>
-        )}
-
-        {(isHistoryLoading && (viewingDate === 'history' || (viewingDate === 'today' && todaysHistory.length === 0 && tasksToMonitor.length === 0))) ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}><Spin tip="Loading history..." /></div>
-        ) : displayedTasks.length === 0 ? (
-            <Empty description={viewingDate === 'history' && !selectedHistoryDate ? "Select a date to view history." : "No tasks or history to display."} />
-        ) : (
-            <List
-            itemLayout="horizontal"
-            dataSource={displayedTasks}
-            renderItem={(item: FetchTaskItem | FetchHistoryItem, index) => {
-                const itemStatus = getStatus(item);
-                const itemsSaved = getItemsSavedThisRun(item);
-                const itemProgress = getProgress(item);
-                const isRunningOrPending = itemStatus !== 'Complete' && itemStatus !== 'Error' && itemStatus !== 'Skipped';
-
-                const isLastRunningTask = isRunningOrPending &&
-                (index === displayedTasks.length - 1 || !('progress' in displayedTasks[index+1] && getStatus(displayedTasks[index+1]) !== 'Complete' && getStatus(displayedTasks[index+1]) !== 'Error' && getStatus(displayedTasks[index+1]) !== 'Skipped'));
-
-                let extraContent = null;
-                const iconStyle = { fontSize: '16px', verticalAlign: 'middle' };
-                const badgeAreaStyle = {
-                    minWidth: '45px',
-                    display: 'inline-block',
-                    textAlign: 'left' as 'left',
-                    verticalAlign: 'middle',
-                    marginLeft: '8px'
-                };
-
-                const sourceId = getSourceId(item);
-                let determinedFetchDate: string;
-
-                if ('progress' in item && item.status !== 'Complete' && item.status !== 'Error' && item.status !== 'Skipped') {
-                    determinedFetchDate = dayjs().format('YYYY-MM-DD');
-                } else if ('record_date' in item && item.record_date) { 
-                    determinedFetchDate = dayjs(item.record_date).format('YYYY-MM-DD');
-                } else {
-                    determinedFetchDate = dayjs().format('YYYY-MM-DD');
-                }
-
-
-                if (isRunningOrPending) {
-                extraContent = (
-                    <Space align="center">
-                    <Tooltip title={itemStatus}>
-                        {itemStatus === 'Preparing' || itemStatus === 'Pending' ? (
-                        <SyncOutlined spin style={{ ...iconStyle, color: '#1890ff' }} />
-                        ) : (
-                        <LoadingOutlined style={{ ...iconStyle, color: '#1890ff' }} />
-                        )}
-                    </Tooltip>
-                    <Progress
-                        percent={itemProgress}
-                        status="active"
-                        size="small"
-                        showInfo={false}
-                        style={{ width: 60 }}
-                    />
-                    </Space>
-                );
-                } else if (itemStatus === 'Complete') {
-                extraContent = (
-                    <Space align="center" size={0}>
-                    <Tooltip title="Complete">
-                        <CheckCircleOutlined style={{ ...iconStyle, color: '#52c41a' }} />
-                    </Tooltip>
-                    <div style={{...badgeAreaStyle, cursor: 'pointer'}} onClick={() => handleTaskBadgeClick(sourceId, determinedFetchDate)}>
-                        {itemsSaved !== undefined && itemsSaved > 0 && (
-                        <Badge count={`+${itemsSaved}`} style={{ backgroundColor: '#52c41a' }} size="small" />
-                        )}
+                  {/* Pagination controls */}
+                  {total > (filters.page_size || 10) && ( // Show pagination only if more than one page
+                    <div style={{ textAlign: 'center', marginTop: 24, display: 'flex', justifyContent: 'center' }}>
+                      <Pagination current={filters.page} pageSize={filters.page_size} total={total} onChange={(page) => handleFilterChange('page', page)} showSizeChanger={false} />
                     </div>
-                    </Space>
-                );
-                } else if (itemStatus === 'Error') {
-                extraContent = (
-                    <Space align="center" size={0}>
-                    <Tooltip title="Error">
-                        <CloseCircleOutlined style={{ ...iconStyle, color: '#f5222d' }} />
-                    </Tooltip>
-                    <div style={badgeAreaStyle} />
-                    </Space>
-                );
-                } else if (itemStatus === 'Skipped') {
-                extraContent = (
-                    <Space align="center" size={0}>
-                    <Tooltip title="Skipped">
-                        <StopOutlined style={{ ...iconStyle, color: '#faad14' }} />
-                    </Tooltip>
-                    <div style={badgeAreaStyle} />
-                    </Space>
-                );
-                }
-
-                return (
-                <>
-                    <List.Item
-                    key={`${getSourceId(item)}-${'sourceId' in item ? 'live' : 'hist'}-${index}`}
-                    extra={extraContent}
-                    >
-                    <List.Item.Meta
-                        title={<Text ellipsis={{tooltip: getSourceName(item)}}>{getSourceName(item)}</Text>}
-                        description={ viewingDate === 'history' && 'last_updated_at' in item && item.last_updated_at ?
-                            <Text type="secondary" style={{fontSize: '12px'}}>{dayjs(item.last_updated_at).format('HH:mm:ss')}</Text>
-                            : null
-                        }
-                    />
-                    </List.Item>
-
-                    {isLastRunningTask && viewingDate === 'today' && <Divider style={{ margin: '8px 0' }} />}
-                </>
-                );
-            }}
-            />
-        )}
-      </Drawer>
-
-      {selectedNewsItemId !== null && (
-        <AnalysisModal
-          isOpen={analysisModalVisible}
-          onClose={closeAnalysisModal}
-          newsItemId={selectedNewsItemId}
-        />
-      )}
-
-      {/* Action FABs moved to MainLayout */}
+                  )}
+                </Col>
+              </Row>
+            </>
+          )}
+      </div>
     </div>
   );
 };
 
-export default withAuth(NewsPage);
+export default withAuth(NewsPage); // Protect this page

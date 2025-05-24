@@ -1,3 +1,12 @@
+/**
+ * @file AnalysisWindowContent.tsx
+ * @description Component responsible for displaying the analysis of a news item,
+ * including its metadata and the streamed analysis content. It interacts with
+ * the AnalysisStreamManager to handle real-time updates.
+ *
+ * @file_purpose To provide the core UI for viewing news item analysis,
+ *               handling streaming data, and allowing re-analysis.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Typography, Spin, Alert, Space, Divider, Empty, Tooltip, Button } from 'antd';
 import { LinkOutlined, ExperimentOutlined } from '@ant-design/icons';
@@ -8,19 +17,57 @@ import analysisStreamManager from '@/streaming/AnalysisStreamManager';
 
 const { Title, Text, Paragraph } = Typography;
 
+/**
+ * @interface AnalysisWindowContentProps
+ * @description Defines the props for the AnalysisWindowContent component.
+ * It allows passing news item details directly or fetching them via newsItemId.
+ */
 interface AnalysisWindowContentProps {
-  newsItemId: number;
-  newsItemTitle?: string;
-  newsItemDate?: string;
-  newsItemSourceName?: string;
-  newsItemUrl?: string;
-  newsItemSummary?: string;
-  startAnalysisImmediately?: boolean;
+  newsItemId: number;                                // The ID of the news item to display analysis for.
+  newsItemTitle?: string;                            // [newsItemTitle] Optional: The title of the news item.
+  newsItemDate?: string;                             // [newsItemDate] Optional: The publication date of the news item.
+  newsItemSourceName?: string;                       // [newsItemSourceName] Optional: The source name of the news item.
+  newsItemUrl?: string;                              // [newsItemUrl] Optional: The URL of the original news item.
+  newsItemSummary?: string;                          // [newsItemSummary] Optional: A summary of the news item.
+  startAnalysisImmediately?: boolean;                // [startAnalysisImmediately=false] Optional: If true, initiates analysis streaming as soon as the component mounts and item details are available.
 }
 
 const MAX_CONTENT_HEIGHT = '65vh';
 const MIN_CONTENT_HEIGHT = '30vh'; // Adjusted for a reasonable minimum display
 
+/**
+ * @component AnalysisWindowContent
+ * @description Displays the content for a news item's analysis, including metadata
+ * (title, source, date, summary) and the analysis text itself. It fetches news item
+ * details if not fully provided via props and manages streaming of analysis content
+ * using `analysisStreamManager`. Users can also trigger a re-analysis.
+ *
+ * @param {number} newsItemId - The ID of the news item.
+ * @param {string} [newsItemTitle] - Optional: The title of the news item. If not provided, it will be fetched.
+ * @param {string} [newsItemDate] - Optional: The publication date of the news item. If not provided, it will be fetched.
+ * @param {string} [newsItemSourceName] - Optional: The source name of the news item. If not provided, it will be fetched.
+ * @param {string} [newsItemUrl] - Optional: The URL of the original news item. If not provided, it will be fetched.
+ * @param {string} [newsItemSummary] - Optional: A summary of the news item. If not provided, it will be fetched.
+ * @param {boolean} [startAnalysisImmediately=false] - If true, analysis streaming starts when the component is ready.
+ *
+ * @returns {JSX.Element} The rendered analysis content view.
+ *
+ * @example
+ * <AnalysisWindowContent
+ *   newsItemId={123}
+ *   startAnalysisImmediately={true}
+ * />
+ *
+ * @example
+ * <AnalysisWindowContent
+ *   newsItemId={456}
+ *   newsItemTitle="Example Article"
+ *   newsItemDate="2023-01-01"
+ *   newsItemSourceName="News Corp"
+ *   newsItemUrl="https://example.com/article"
+ *   newsItemSummary="This is a summary."
+ * />
+ */
 const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
   newsItemId,
   newsItemTitle,
@@ -125,7 +172,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
     // This should happen *after* initial state is potentially set from manager
     if (startAnalysisImmediately) {
         const currentSnapshot = analysisStreamManager.getStreamStateSnapshot(newsItemId);
-        // Ensure shouldInitiate correctly reflects the need to start afresh. 
+        // Ensure shouldInitiate correctly reflects the need to start afresh.
         // Let's refine to be more explicit about restarting based on startAnalysisImmediately if it was previously complete.
         const shouldReallyInitiate = !currentSnapshot || // No stream ever existed
                                   (!currentSnapshot.isStreaming && currentSnapshot.isComplete) || // Was complete, startAnalysisImmediately implies we want it fresh
@@ -141,7 +188,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
             analysisStreamManager.initiateStream(newsItemId, false); // false = don't force if already active from another source/tab
         } else if (currentSnapshot && currentSnapshot.isStreaming) {
             // State is already managed by the subscription, ensure UI reflects current stream
-            handleManagerStateUpdate(currentSnapshot); 
+            handleManagerStateUpdate(currentSnapshot);
         } else if (currentSnapshot && !currentSnapshot.isStreaming && !currentSnapshot.isComplete && !currentSnapshot.error) {
             setAnalysisContent('');
             setIsStreaming(true);
@@ -167,10 +214,10 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
   const handleForceAnalysis = () => {
     if (!newsItemId) return;
-    setAnalysisContent(''); 
+    setAnalysisContent('');
     setIsStreaming(true);
     setIsComplete(false);
-    setStreamError(null); 
+    setStreamError(null);
     // Content, isStreaming, isComplete will be updated by the manager via subscription
     analysisStreamManager.initiateStream(newsItemId, true); // true for forceRestart
   };
@@ -224,7 +271,7 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
       display: 'flex',
       flexDirection: 'column',
       padding: '20px', // This padding provides the symmetrical spacing
-      overflow: 'hidden' 
+      overflow: 'hidden'
     }}>
       {displayTitle && (
         <div style={{ flexShrink: 0 }}>
@@ -283,10 +330,10 @@ const AnalysisWindowContent: React.FC<AnalysisWindowContentProps> = ({
 
           {/* Fallback Empty state if no content, not streaming, and not explicitly completed empty */}
           {!analysisContent && !isStreaming && (!isComplete || streamError) && (
-              <Empty 
+              <Empty
                 description={
                   <>
-                    No analysis available. 
+                    No analysis available.
                     {displayTitle && <>Click the <ExperimentOutlined style={{ color: 'var(--accent-color)'}}/> icon in the header to generate one.</>}
                   </>
                 }
